@@ -1,0 +1,121 @@
+# CAN 信号配置示例
+# 定义 CAN ID → 显示变量的映射关系
+
+can_sources:
+  - name: "BMS"
+    can_id: 0x186040F3
+    period_ms: 100
+    fields:
+      - name: "bat_volt"
+        byte: [0, 1]
+        bits: 16
+        endian: little
+        type: float
+        formula: "x / 10.0"
+        unit: "V"
+
+      - name: "bat_curr"
+        byte: [2, 3]
+        bits: 16
+        endian: little
+        type: float
+        formula: "(x - 10000) / 10.0"
+        unit: "A"
+
+      - name: "bat_soc"
+        byte: 4
+        bits: 8
+        type: uint8
+        unit: "%"
+
+  - name: "VCPU"
+    can_id: 0x203
+    period_ms: 50
+    fields:
+      - name: "vehicle_speed"
+        byte: [3, 4]
+        bits: 16
+        endian: little
+        type: float
+        formula: "x / 10.0"
+        unit: "km/h"
+
+      - name: "brake"
+        byte: 2
+        bits: 8
+        type: uint8
+        formula: "x * 0.4"
+        unit: "%"
+
+  - name: "MCU"
+    can_id: 0x101
+    period_ms: 100
+    fields:
+      - name: "motor_rpm"
+        byte: [0, 1]
+        bits: 16
+        endian: little
+        type: int16
+        unit: "rpm"
+
+      - name: "motor_temp"
+        byte: 4
+        bits: 8
+        type: uint8
+        formula: "x - 40"
+        unit: "°C"
+
+  - name: "SEAT"
+    can_id: 0x2F0
+    period_ms: 500
+    fields:
+      - name: "driver_occupied"
+        byte: 0
+        bits: 1
+        type: uint8
+        formula: "x"
+        unit: ""
+
+  - name: "SEAT_P"
+    can_id: 0x2F1
+    period_ms: 500
+    fields:
+      - name: "passenger_occupied"
+        byte: 0
+        bits: 1
+        type: uint8
+        formula: "x"
+        unit: ""
+
+  - name: "SEAT_BELT"
+    can_id: 0x3B0
+    period_ms: 200
+    fields:
+      - name: "driver_buckled"
+        byte: 0
+        bits: 1
+        type: uint8
+        formula: "x"
+        unit: ""
+
+  - name: "SEAT_BELT_P"
+    can_id: 0x3B1
+    period_ms: 200
+    fields:
+      - name: "passenger_buckled"
+        byte: 0
+        bits: 1
+        type: uint8
+        formula: "x"
+        unit: ""
+
+  - name: "SEAT_BELT_R"
+    can_id: 0x3B2
+    period_ms: 200
+    fields:
+      - name: "rear_buckle"
+        byte: 0
+        bits: 3
+        type: uint8
+        formula: "x"
+        unit: ""

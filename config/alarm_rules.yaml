@@ -1,0 +1,67 @@
+# 报警规则配置
+# 90% 的迭代在这里修改
+
+alarm_rules:
+  - name: "bat_overvolt"
+    display_key: "bat_volt"
+    condition: "value > 420"
+    priority: "high"
+    duration_ms: 200
+    actions:
+      - type: "indicator_light"
+        widget: "bat_warn_light"
+        flash: true
+        flash_hz: 2
+      - type: "alarm_text"
+        text_zh: "电池过压！"
+        text_en: "BATTERY OVERVOLTAGE"
+        font_size: 32
+        color: "#FF4400"
+
+  - name: "bat_undervolt"
+    display_key: "bat_volt"
+    condition: "value < 280"
+    priority: "high"
+    duration_ms: 200
+    actions:
+      - type: "indicator_light"
+        widget: "bat_warn_light"
+        flash: true
+        flash_hz: 2
+      - type: "alarm_text"
+        text_zh: "电池欠压！"
+        text_en: "BATTERY UNDERVOLTAGE"
+        font_size: 32
+        color: "#FF4400"
+
+  - name: "bat_soc_low"
+    display_key: "bat_soc"
+    condition: "value < 10"
+    priority: "medium"
+    duration_ms: 1000
+    actions:
+      - type: "indicator_light"
+        widget: "soc_warn_light"
+        flash: true
+        flash_hz: 1
+      - type: "alarm_text"
+        text_zh: "电量低，请充电"
+        text_en: "LOW BATTERY"
+        font_size: 28
+        color: "#FFAA00"
+
+  - name: "motor_overtemp"
+    display_key: "motor_temp"
+    condition: "value > 120"
+    priority: "high"
+    duration_ms: 500
+    actions:
+      - type: "indicator_light"
+        widget: "motor_warn_light"
+        flash: true
+        flash_hz: 4
+      - type: "alarm_text"
+        text_zh: "电机温度异常！"
+        text_en: "MOTOR OVERTEMP"
+        font_size: 28
+        color: "#FF4400"

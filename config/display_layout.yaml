@@ -1,0 +1,64 @@
+# 界面布局配置
+display:
+  resolution: { width: 800, height: 480 }
+  theme: dark
+  background: "#0A0A0A"
+  language: zh
+
+  pages:
+    - id: main
+      layers:
+        - id: background
+          type: image
+          image: "dashboard_bg.png"
+
+        - id: speed_gauge
+          type: gauge
+          position: { x: 240, y: 40 }
+          size: { width: 320, height: 320 }
+          bindings:
+            value: "vehicle_speed"
+          config:
+            min: 0
+            max: 260
+            unit: "km/h"
+            major_ticks: 13
+
+        - id: bat_volt_text
+          type: text
+          position: { x: 600, y: 60 }
+          bindings:
+            value: "bat_volt"
+          config:
+            format: "{:.1f}V"
+            font_size: 24
+            color: "#FFFFFF"
+
+        - id: soc_bar
+          type: bar
+          position: { x: 600, y: 100 }
+          size: { width: 40, height: 180 }
+          bindings:
+            value: "bat_soc"
+          config:
+            min: 0
+            max: 100
+            direction: bottom_up
+            bar_color: "#00FF88"
+
+        - id: bat_warn
+          type: light
+          position: { x: 600, y: 260 }
+          bindings:
+            active: "alarm.bat_overvolt.active"
+            flash: "alarm.bat_overvolt.flash"
+          config:
+            image_on: "warning_bat_red.png"
+            image_off: "warning_bat_dim.png"
+
+        - id: seat_belt_zone
+          type: custom
+          position: { x: 200, y: 380 }
+          size: { width: 400, height: 80 }
+          config:
+            component: "SeatBeltZone.qml"

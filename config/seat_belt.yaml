@@ -1,0 +1,68 @@
+# 安全带座位配置
+seat_belt:
+  positions:
+    - id: "driver"
+      label_zh: "主驾"
+      label_en: "DRIVER"
+      icon_buckled: "seat_driver_buckled.png"
+      icon_unbuckled: "seat_driver_unbuckled.png"
+      icon_empty: "seat_driver_empty.png"
+      can_ids:
+        occupied: { id: 0x2F0, bit: 0 }
+        buckle:   { id: 0x3B0, bit: 0 }
+      sort_priority: 1
+
+    - id: "passenger"
+      label_zh: "副驾"
+      label_en: "PASSENGER"
+      icon_buckled: "seat_passenger_buckled.png"
+      icon_unbuckled: "seat_passenger_unbuckled.png"
+      icon_empty: "seat_passenger_empty.png"
+      can_ids:
+        occupied: { id: 0x2F1, bit: 0 }
+        buckle:   { id: 0x3B1, bit: 0 }
+      sort_priority: 2
+
+    - id: "rear_left"
+      label_zh: "后左"
+      label_en: "REAR L"
+      icon_buckled: "seat_rear_left_buckled.png"
+      icon_unbuckled: "seat_rear_left_unbuckled.png"
+      icon_empty: "seat_rear_left_empty.png"
+      can_ids:
+        buckle: { id: 0x3B2, bit: 0 }
+      sort_priority: 3
+
+    - id: "rear_center"
+      label_zh: "后中"
+      label_en: "REAR C"
+      icon_buckled: "seat_rear_center_buckled.png"
+      icon_unbuckled: "seat_rear_center_unbuckled.png"
+      icon_empty: "seat_rear_center_empty.png"
+      can_ids:
+        buckle: { id: 0x3B2, bit: 1 }
+      sort_priority: 4
+
+    - id: "rear_right"
+      label_zh: "后右"
+      label_en: "REAR R"
+      icon_buckled: "seat_rear_right_buckled.png"
+      icon_unbuckled: "seat_rear_right_unbuckled.png"
+      icon_empty: "seat_rear_right_empty.png"
+      can_ids:
+        buckle: { id: 0x3B2, bit: 2 }
+      sort_priority: 5
+
+  trigger:
+    speed_threshold: 5.0
+    require_seat_occupied: true
+
+  messages:
+    single_zh: "{position}请系安全带"
+    multiple_zh: "{positions}请系安全带"
+    single_en: "{position} please buckle up"
+    multiple_en: "{positions} please buckle up"
+
+  flash:
+    active: true
+    frequency_hz: 2

@@ -1,0 +1,40 @@
+# CAN 信号健康监控配置
+signals:
+  - name: "vehicle_speed"
+    can_id: 0x203
+    timeout_ms: 500
+    validity:
+      min: 0
+      max: 300
+      max_delta: 50
+
+  - name: "bat_volt"
+    can_id: 0x186040F3
+    timeout_ms: 1000
+    validity:
+      min: 200
+      max: 450
+
+  - name: "bat_soc"
+    can_id: 0x186040F3
+    timeout_ms: 1000
+    validity:
+      min: 0
+      max: 100
+    smoothing: true
+    smoothing_window: 5
+
+  - name: "motor_rpm"
+    can_id: 0x101
+    timeout_ms: 1000
+    validity:
+      min: -5000
+      max: 15000
+      max_delta: 2000
+
+  - name: "motor_temp"
+    can_id: 0x101
+    timeout_ms: 2000
+    validity:
+      min: -40
+      max: 200

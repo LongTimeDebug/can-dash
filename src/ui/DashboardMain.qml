@@ -4,11 +4,12 @@ import QtQuick.Controls 2.5
 import QtQuick.Layouts 1.3
 import CanDash 1.0
 
-Item {
+ApplicationWindow {
     id: root
     width: 800
     height: 480
     visible: true
+    title: "CAN-Dash"
 
     // 背景
     Rectangle {
@@ -59,8 +60,8 @@ Item {
         x: 600
         y: 260
         active: dashboard.alarmActive
-        imageOn: "qrc:/images/warning_bat_red.png"
-        imageOff: "qrc:/images/warning_bat_dim.png"
+        imageOn: "images/warning_bat_red.png"
+        imageOff: "images/warning_bat_dim.png"
     }
 
     // 安全带区域
@@ -83,14 +84,16 @@ Item {
 
         color: "#CC000000"
         radius: 6
-        padding: 10
 
         Text {
-            anchors.centerIn: parent
+            anchors.fill: parent
+            anchors.margins: 10
             text: dashboard.alarmMessageZh
             color: "#FF4400"
             font.pixelSize: 32
             font.weight: Font.Bold
+            verticalAlignment: Text.AlignVCenter
+            horizontalAlignment: Text.AlignHCenter
         }
     }
 

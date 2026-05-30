@@ -1,7 +1,7 @@
 // main.cpp
 // CAN-Dash 仪表盘主程序
 
-#include <QCoreApplication>
+#include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QtQml/qqmlcontext.h>
 #include <QtGlobal>
@@ -12,7 +12,7 @@
 int main(int argc, char* argv[]) {
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 
-    QCoreApplication app(argc, argv);
+    QGuiApplication app(argc, argv);
     app.setApplicationName("can-dash");
     app.setApplicationVersion("1.0.0");
 
@@ -31,8 +31,12 @@ int main(int argc, char* argv[]) {
     // 暴露 backend 到 QML 上下文
     engine.rootContext()->setContextProperty("dashboard", &backend);
 
-    // 加载主 QML
-    const QUrl url(QStringLiteral("qrc:/ui/DashboardMain.qml"));
+    // 设置 QML 搜索路径
+    engine.addImportPath(QStringLiteral("qml"));
+    engine.addImportPath(QStringLiteral("."));
+
+    // 加载主 QML（从文件系统）
+    const QUrl url(QStringLiteral("qml/DashboardMain.qml"));
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreated,
         &app, [url](QObject* obj, const QUrl& objUrl) {

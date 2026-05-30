@@ -3,7 +3,7 @@ import QtQuick 2.15
 
 Item {
     id: root
-    property float value: 0
+    property real value: 0
     property real minValue: 0
     property real maxValue: 100
     property string direction: "bottom_up"  // bottom_up or top_down

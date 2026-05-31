@@ -2,7 +2,6 @@
 # 90% 的迭代在这里修改
 
 alarm_rules:
-  # ─── 电池报警 ───
   - name: "bat_overvolt"
     display_key: "bat_volt"
     condition: "value > 420"
@@ -35,7 +34,6 @@ alarm_rules:
         font_size: 32
         color: "#FF4400"
 
-  # ─── 电量报警 ───
   - name: "bat_soc_low"
     display_key: "bat_soc"
     condition: "value < 10"
@@ -52,7 +50,6 @@ alarm_rules:
         font_size: 28
         color: "#FFAA00"
 
-  # ─── 电机报警 ───
   - name: "motor_overtemp"
     display_key: "motor_temp"
     condition: "value > 120"
@@ -68,16 +65,3 @@ alarm_rules:
         text_en: "MOTOR OVERTEMP"
         font_size: 28
         color: "#FF4400"
-
-  # ─── 超速报警 ───
-  - name: "overspeed"
-    display_key: "vehicle_speed"
-    condition: "value > 120"
-    priority: "medium"
-    duration_ms: 1000
-    actions:
-      - type: "alarm_text"
-        text_zh: "超速！请减速"
-        text_en: "OVERSPEED - SLOW DOWN"
-        font_size: 32
-        color: "#FF8800"

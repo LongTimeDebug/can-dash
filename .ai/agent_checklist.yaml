@@ -1,157 +1,57 @@
 # CAN-Dash AI 开发检查清单
-project: can-dash
-repo: https://github.com/pixelpiloter/can-dash
-version: "1.0"
-phase: active_development
-last_known_good_commit: "bfccab4"
+# AI Agent 每次迭代前必须逐项确认
 
-iteration_rules:
-  single_thing_per_iteration:
-    rule_1: "一个 commit = 一个清晰的改动"
-    rule_2: "commit message 格式: [迭代] <描述> 或 [fix] <描述>"
-    rule_3: "完成后立即 push，不要累积多个改动"
+build_verify:
+  - "cmake -B build && cmake --build build 成功，无 link 错误"
+  - "cd build && ctest --output-on-failure 所有测试通过"
+  - "binary 大小 > 0 字节 (ls -la build/can-dash)"
 
-  priority_order:
-    1: "Layer 2 单元测试 (tests/test_*.cpp) - 保持 100% 通过"
-    2: "vehicle_logic.cpp - 车速/SOC/驾驶模式业务逻辑"
-    3: "indicator_runtime.cpp/h - 指示灯运行时"
-    4: "can_signal_monitor.cpp/h - 信号健康监控"
-    5: "layer3/can_receiver_qt.cpp/h - Unix Socket 接收"
-    6: "QML 组件 - GaugeControl/BarIndicator/WarningLight/SeatBeltZone"
-    7: "schemas/*.schema.json - JSON Schema 校验文件"
-    8: "can_sim/engine.py - 添加更多仿真场景"
-    9: ".ai/agent_checklist.yaml - 本文件"
-    10: "错误处理和边界检查"
+code_quality:
+  - "Layer 2 代码无 Qt include（纯 C++）"
+  - "Layer 2 代码无 new/malloc（全部 static/栈）"
+  - "display_key 名称在三处完全一致：can_ids.yaml / dashboard_backend_qt.cpp / QML Connections"
+  - "DisplayData dd = {} 后有 memset(&dd, 0, sizeof(dd))"
+  - "updatedMask 位扫描后才对 m_displayData 赋值"
+  - "QML 使用 property real 而非 property float"
+  - "QML Connections 用 function onXxx() {} 新语法"
 
-forbidden:
-  - "不要手动修改 src/generated/ 下的任何文件（会被 yaml_to_c.py 覆盖）"
-  - "不要手动修改 src/layer1/display_data.h（由 yaml_to_c.py 生成）"
-  - "不要在 Layer 2 代码中 include 任何 Qt 头文件"
-  - "不要在 Layer 2 中 new 动态内存（使用 static buffer 或栈）"
-  - "不要跳过 validate.py 直接运行 yaml_to_c.py"
-  - "不要改 config/*.yaml 之外的文件作为快速修复"
+yaml_workflow:
+  - "python tools/validate.py 通过后再运行 yaml_to_c.py"
+  - "python tools/yaml_to_c.py 后运行 python tools/fix_generated.py src/generated"
+  - "新增 CAN ID 已在 can_ids.yaml 定义"
+  - "seat_belt.yaml 的 can_ids 也在 can_ids.yaml 定义"
+  - "跨文件引用 display_key 已定义（validate.py 检查）"
 
-allowed_paths:
-  Layer_2: src/layer2/
-  Layer_3: src/layer3/
-  QML_UI: src/ui/
-  工具脚本: tools/
-  测试: tests/
-  配置: config/*.yaml
+qml_notes:
+  - "根元素是 ApplicationWindow（QQmlApplicationEngine 需要）"
+  - "修改 src/ui/*.qml 后手动 cp src/ui/*.qml build/qml/"
+  - "QML 的 text 绑定用 Connections + 直接赋值，不用惰性 binding"
+  - "报警横幅/语言按钮有 z: 10 / z: 20 避免被表盘遮挡"
+  - "不用 property float，用 property real"
+  - "signal handler 只支持单表达式，不支持分号隔开多条"
 
-build_process:
-  compile: "cd /home/cjl/can-dash/build && make -j$(nproc)"
-  test: "cd /home/cjl/can-dash/build && make test"
-  on_failure: "修复后再提交，不要忽略失败测试"
+git_ops:
+  - "commit message 清晰描述本次改动"
+  - "每次 commit 只做一件事"
+  - "push 前 git pull --rebase（避免 workflow scope 问题）"
+  - "确认 remote 是 https://github.com/pixelpiloter/can-dash.git"
 
-yaml_iteration:
-  step1: "编辑 config/*.yaml（90% 的迭代在这里）"
-  step2: "python tools/validate.py"
-  step3: "python tools/yaml_to_c.py && python tools/fix_generated.py src/generated"
-  step4: "make -j$(nproc) && make test"
-  step5: "git add -A && git commit -m [迭代] 描述 && git push origin main"
+headless_env:
+  - "DISPLAY=:10.0 指向可用的 X server"
+  - "设置 QT_PLUGIN_PATH, QML2_IMPORT_PATH, QT_QUICK_BACKEND=software"
+  - "xauth list 有 MIT-MAGIC-COOKIE"
+  - "VMware 环境用 QT_QPA_PLATFORM=xcb"
 
-compilation_fixes:
-  - error: "expected unqualified-id before '{'"
-    cause: "yaml_to_c.py 模板 bug"
-    fix: "运行 fix_generated.py"
+debug_tips:
+  - "C++ 数据层：qDebug() << 'CAN: speed=' << m_displayData.value('vehicle_speed')"
+  - "QML 信号：Connections { function onDisplayDataChanged() { console.log(...) } }"
+  - "socket 连接：ss --unix | grep can_dash 确认 ESTAB"
+  - "多进程：ps aux | grep -E 'can-dash|python3.*engine'"
+  - "确认 engine.py 和 can-dash 是当前 session 启动的进程"
 
-  - error: "typedef struct C++ 冲突"
-    cause: "generated/*.h 用了 C typedef"
-    fix: "fix_generated.py 处理"
-
-  - error: "property float value Qt6 报错"
-    cause: "Qt6 QML 不支持 float"
-    fix: "改 property real value"
-
-  - error: "padding on Rectangle"
-    cause: "Rectangle 无此属性"
-    fix: "用 anchors.margins"
-
-  - error: "QCoreApplication SIGSEGV"
-    cause: "需要 GUI 上下文"
-    fix: "改 QGuiApplication"
-
-  - error: "cannot convert initializer list"
-    cause: "Event&& 不接受 lvalue"
-    fix: "EventBus::publish 改 const Event&"
-
-  - error: "readyRead never triggers"
-    cause: "Unix socket 信号不可靠"
-    fix: "改用 onTick() 轮询"
-
-github_push:
-  http_408:
-    description: "网络超时，暂时性错误"
-    solution: "等待后重试 GIT_TERMINAL_PROMPT=0 git push origin main"
-  port_443_refused:
-    description: "虚拟机网络无法访问 GitHub"
-    solution: "检查 ping github.com，解决后直接 push"
-  workflow_scope_missing:
-    description: "token 缺少 workflow 权限"
-    solution: "等待token更新 或 git pull --rebase && 重试"
-
-paths:
-  构建目录: /home/cjl/can-dash/build
-  源码目录: /home/cjl/can-dash/src
-  配置目录: /home/cjl/can-dash/config
-  仿真引擎: python3 -u can_sim/engine.py
-  socket_path: /tmp/can_dash_socket
-
-layer_architecture:
-  layer_1:
-    directories: "src/layer1/ + src/generated/"
-    characteristics: "纯 C struct，yaml_to_c.py 生成"
-  layer_2:
-    directories: src/layer2/
-    characteristics: "纯 C++，无 Qt，无动态内存，EventBus 通信"
-  layer_3:
-    directories: src/layer3/
-    characteristics: "Qt 适配，Q_PROPERTY，定时器"
-  layer_4:
-    directories: src/ui/
-    characteristics: QML 纯展示
-
-key_files:
-  主程序入口: src/main.cpp
-  Dashboard后端: src/layer3/dashboard_backend_qt.cpp
-  CAN转换器: src/layer2/can_converter.cpp
-  报警运行时: src/layer2/alarm_runtime.cpp
-  安全带运行时: src/layer2/seat_belt_runtime.cpp
-  信号监控: src/layer2/can_signal_monitor.cpp
-  车辆逻辑: src/layer2/vehicle_logic.cpp
-  指示灯运行时: src/layer2/indicator_runtime.cpp
-  QML主界面: src/ui/DashboardMain.qml
-  仪表盘画布: src/ui/GaugeCanvas.qml
-  YAML转C++生成器: tools/yaml_to_c.py
-  模板修复脚本: tools/fix_generated.py
-  配置校验器: tools/validate.py
-  CAN仿真引擎: can_sim/engine.py
-
-test_commands:
-  从零构建: "rm -rf build && mkdir build && cd build && cmake .. && make -j$(nproc)"
-  仅编译: "cd /home/cjl/can-dash/build && make -j$(nproc)"
-  运行测试: "cd /home/cjl/can-dash/build && make test"
-  运行仪表盘: "cd /home/cjl/can-dash/build && ./can-dash"
-  运行CAN仿真: "python3 -u can_sim/engine.py"
-  验证配置: "python tools/validate.py"
-  重新生成C++代码: "python tools/yaml_to_c.py && python tools/fix_generated.py src/generated"
-
-pending_tasks:
-  - id: can_receiver_qt
-    description: "can_receiver_qt.cpp/h（Unix Socket 接收层，从 dashboard_backend_qt 拆分）"
-    priority: high
-
-  - id: schema_validation
-    description: "schemas/ JSON Schema 集成到 validate.py"
-    priority: medium
-
-  - id: engine_scenarios
-    description: "can_sim/engine.py 添加8种场景模式：normal/low_soc/overvolt/undervolt/overspeed/motor_overtemp/timeout/reverse/all"
-    priority: medium
-    status: done
-    commit: "bfccab4"
-
-  - id: seatbelt_qml
-    description: "SeatBeltZone.qml 交互逻辑完善"
-    priority: low
+common_errors:
+  - "link error undefined reference to setIndicator(QString,bool) -> cpp 缺少 2 参数重载"
+  - "QML property float -> 改为 property real"
+  - "QML binding 不更新 -> Connections + 直接赋值方案"
+  - "数据永远为零 -> can_converter.cpp 没有写入 DisplayData"
+  - "帧边界错误 -> 添加 byte_start >= len 检查"

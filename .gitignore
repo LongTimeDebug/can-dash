@@ -16,9 +16,6 @@ src/generated/*
 *.swp
 *~
 
-# qml symlink (points to build/qml/)
-qml
-
 # OS
 .DS_Store
 Thumbs.db
@@ -43,3 +40,4 @@ qrc_*.c
 # Temporary
 /tmp/
 *.tmp
+build_ci_test/

@@ -39,6 +39,7 @@ class DashboardBackend : public QObject {
 
     // ─── 多语言 ───
     Q_PROPERTY(QString currentLanguage READ currentLanguage NOTIFY languageChanged)
+    Q_PROPERTY(QString currentFont READ currentFont NOTIFY languageChanged)
 
 public:
     explicit DashboardBackend(QObject* parent = nullptr);
@@ -67,12 +68,14 @@ public:
     Q_INVOKABLE QString tr(const QString& key) const;
     Q_INVOKABLE void setLanguage(const QString& lang);
     QString currentLanguage() const { return m_currentLanguage; }
+    QString currentFont() const;
 
     // 指示灯查询
     Q_INVOKABLE bool indicatorOn(const QString& key) const;
 
     // 指示灯控制（由 AlarmRuntime 调用）
-    void setIndicator(const QString& widget_id, bool on, bool flash, float hz);
+    Q_INVOKABLE void setIndicator(const QString& widget_id, bool on, bool flash, float hz);
+    Q_INVOKABLE void setIndicator(const QString& widget_id, bool on);
 
 signals:
     void alarmActiveChanged();

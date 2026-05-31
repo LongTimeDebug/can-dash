@@ -315,6 +315,10 @@ void DashboardBackend::setIndicator(const QString& widget_id, bool on,
     emit indicatorStatesChanged();
 }
 
+void DashboardBackend::setIndicator(const QString& widget_id, bool on) {
+    setIndicator(widget_id, on, false, 0.0f);
+}
+
 // ─── QML 接口 ─────────────────────────────────────────────
 QVariant DashboardBackend::get(const QString& key) const {
     return m_displayData.value(key);
@@ -340,6 +344,11 @@ void DashboardBackend::setLanguage(const QString& lang) {
         m_currentLanguage = lang;
         emit languageChanged();
     }
+}
+
+QString DashboardBackend::currentFont() const {
+    if (!m_langManager) return "Noto Sans CJK SC, sans-serif";
+    return QString::fromUtf8(m_langManager->currentFontFamily());
 }
 
 // ─── 指示灯查询 ───────────────────────────────────────────

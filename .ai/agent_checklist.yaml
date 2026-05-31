@@ -1,9 +1,9 @@
 # CAN-Dash AI 开发检查清单
 project: can-dash
-repo: https://github.com/LongTimeDebug/can-dash
+repo: https://github.com/pixelpiloter/can-dash
 version: "1.0"
 phase: active_development
-last_known_good_commit: "38f7a89"
+last_known_good_commit: "bfccab4"
 
 iteration_rules:
   single_thing_per_iteration:
@@ -147,8 +147,10 @@ pending_tasks:
     priority: medium
 
   - id: engine_scenarios
-    description: "can_sim/engine.py 添加更多仿真场景（倒车/充电/故障模拟）"
+    description: "can_sim/engine.py 添加8种场景模式：normal/low_soc/overvolt/undervolt/overspeed/motor_overtemp/timeout/reverse/all"
     priority: medium
+    status: done
+    commit: "bfccab4"
 
   - id: seatbelt_qml
     description: "SeatBeltZone.qml 交互逻辑完善"

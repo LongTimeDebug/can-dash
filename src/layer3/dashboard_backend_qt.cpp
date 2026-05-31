@@ -59,14 +59,9 @@ void DashboardBackend::onCanFrameReceived(quint32 canId, const QByteArray& data)
     );
 
     if (updatedMask == 0) {
-        // 调试：打印未能解析的帧
         qDebug() << "DROP: canId=0x" << QString::number(canId, 16) << " dataLen=" << data.size();
         return;
     }
-
-    // 提取关键变量（简化版，实际通过 name→index 映射查找）
-    // 这里演示：假设 updatedMask 的 bit0=bat_volt, bit1=bat_soc, bit2=speed
-    // 实际项目通过 display_key 名称查找字段
 
     // 更新显示数据：只更新本帧实际携带的字段（由 updatedMask 决定）
     // 未携带的字段保留旧值（从 m_displayData 继承）
@@ -81,27 +76,25 @@ void DashboardBackend::onCanFrameReceived(quint32 canId, const QByteArray& data)
         if (strcmp(def->display_key, "bat_curr") == 0)       has_bat_curr  = true;
         if (strcmp(def->display_key, "bat_soc") == 0)        has_bat_soc   = true;
         if (strcmp(def->display_key, "vehicle_speed") == 0)  has_speed     = true;
-        if (strcmp(def->display_key, "rpm") == 0)             has_rpm       = true;
+        if (strcmp(def->display_key, "motor_rpm") == 0)   has_rpm       = true;
         if (strcmp(def->display_key, "motor_temp") == 0)      has_motor_temp = true;
     }
     if (has_bat_volt)   newData["bat_volt"] = dd.bat_volt;
     if (has_bat_curr)   newData["bat_curr"] = dd.bat_curr;
     if (has_bat_soc)    newData["bat_soc"] = dd.bat_soc;
     if (has_speed)      newData["vehicle_speed"] = dd.vehicle_speed;
-    if (has_rpm)        newData["rpm"] = dd.motor_rpm;
+    if (has_rpm)        newData["motor_rpm"] = dd.motor_rpm;
     if (has_motor_temp) newData["motor_temp"] = dd.motor_temp;
     m_displayData = newData;
     static int tick_count = 0;
     if (++tick_count % 20 == 0) {
-        qDebug() << "CAN: speed=" << dd.vehicle_speed << " bat_volt=" << dd.bat_volt << " soc=" << dd.bat_soc;
+        qDebug() << "CAN: speed=" << dd.vehicle_speed << " bat_volt=" << dd.bat_volt << " soc=" << dd.bat_soc << " rpm=" << dd.motor_rpm;
     } else {
-        qDebug() << "QML: spd=" << dd.vehicle_speed << " v=" << dd.bat_volt << " soc=" << dd.bat_soc;
+        qDebug() << "QML: spd=" << dd.vehicle_speed << " v=" << dd.bat_volt << " soc=" << dd.bat_soc << " rpm=" << dd.motor_rpm;
     }
     emit displayDataChanged();
 
     // 转发给报警 Runtime（通过 display_key 匹配）
-    // 简化：直接按变量名分发
-    // 实际：通过 CAN_FIELD_TABLE 的 display_key 索引映射
     (void)updatedMask;
 }
 

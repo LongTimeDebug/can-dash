@@ -16,6 +16,7 @@ uint32_t CanConverter::processFrame(uint32_t can_id, const uint8_t* data,
     for (int i = 0; i < m_tableCount; i++) {
         const CanFieldDef* def = &m_table[i];
         if (def->can_id != can_id) continue;
+        if (def->byte_start >= (int)len) continue;  // 帧不够长，本字段的起始字节不存在
         if (def->byte_end >= (int)len) continue;
 
         uint64_t raw = extractRaw(def, data);

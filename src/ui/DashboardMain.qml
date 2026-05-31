@@ -37,11 +37,14 @@ ApplicationWindow {
     Connections {
         target: dashboard
         function onDisplayDataChanged() {
-            rawSpeed = dashboard.displayData["vehicle_speed"] || 0
-            rawRpm = dashboard.displayData["rpm"] || 0
-            var v = Math.round((dashboard.displayData["bat_volt"] || 0) * 10) / 10
-            var soc = Math.round(dashboard.displayData["bat_soc"] || 0)
-            console.log("QML: spd=" + rawSpeed + " rpm=" + rawRpm + " v=" + v + " soc=" + soc)
+            var dd = dashboard.displayData
+            var keys = []
+            for (var k in dd) keys.push(k)
+            rawSpeed = dd["vehicle_speed"] || 0
+            rawRpm = dd["motor_rpm"] !== undefined ? dd["motor_rpm"] : 0
+            var v = Math.round((dd["bat_volt"] || 0) * 10) / 10
+            var soc = Math.round(dd["bat_soc"] || 0)
+            console.log("QML: spd=" + rawSpeed + " rpm=" + rawRpm + " v=" + v + " soc=" + soc + " keys=" + keys.join("+"))
             batVoltText.text = v.toFixed(1) + " V"
             batVoltText.color = v > 14.0 ? "#00FF88" : v > 12.0 ? "#FFAA00" : "#FF4400"
             socBar.width = batPanel.width * (soc / 100)

@@ -7,13 +7,48 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  # ── C++ 单元测试（不需要 Qt6）───
+  ut:
     runs-on: ubuntu-22.04
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Qt6 and deps
+      - name: Install Python deps
+        run: pip install pyyaml jsonschema pydantic
+
+      - name: Validate YAML
+        run: python tools/validate.py
+
+      - name: Generate C code
+        run: python tools/yaml_to_c.py
+
+      - name: Configure CMake (no Qt required)
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. -DCMAKE_DISABLE_FIND_PACKAGE_Qt6=ON 2>&1 || true
+          # 即使 Qt6 找不到，也尝试编译 layer2 C++ 代码
+          cmake --build . --target test_can_converter test_alarm_runtime test_seat_belt_runtime test_event_bus test_vehicle_logic test_indicator_runtime test_can_signal_monitor -j$(nproc) 2>&1 || {
+            echo "=== CMake-only UT build failed, checking logs ==="
+            cat CMakeFiles/CMakeOutput.log 2>/dev/null | tail -20
+            exit 1
+          }
+
+      - name: Run C++ unit tests
+        run: |
+          cd build
+          for t in test_can_converter test_alarm_runtime test_seat_belt_runtime test_event_bus test_vehicle_logic test_indicator_runtime test_can_signal_monitor; do
+            echo "=== Running \$t ===" && ./\$t || exit 1
+          done
+
+  # ── 完整构建（需要 Qt6）───
+  build:
+    runs-on: ubuntu-22.04
+    needs: ut
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt6
         run: |
           sudo apt-get install -y software-properties-common
           sudo add-apt-repository -y universe
@@ -21,16 +56,13 @@ jobs:
           sudo apt-get install -y qt6-base-dev qt6-declarative-dev qt6-svg-dev
 
       - name: Install Python deps
-        run: |
-          pip install pyyaml jsonschema pydantic
+        run: pip install pyyaml jsonschema pydantic
 
       - name: Validate YAML
-        run: |
-          python tools/validate.py
+        run: python tools/validate.py
 
       - name: Generate C code
-        run: |
-          python tools/yaml_to_c.py
+        run: python tools/yaml_to_c.py
 
       - name: Configure CMake
         run: |

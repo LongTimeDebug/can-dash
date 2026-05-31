@@ -27,6 +27,7 @@ class DashboardBackend : public QObject {
     Q_PROPERTY(bool alarmActive READ alarmActive NOTIFY alarmActiveChanged)
     Q_PROPERTY(QString alarmMessageZh READ alarmMessageZh NOTIFY alarmActiveChanged)
     Q_PROPERTY(QVariantList alarmList READ alarmList NOTIFY alarmActiveChanged)
+    Q_PROPERTY(QVariantMap alarmStates READ alarmStates NOTIFY alarmStatesChanged)
 
     // ─── 安全带状态 ───
     Q_PROPERTY(bool seatBeltWarningActive READ seatBeltWarningActive NOTIFY seatBeltWarningChanged)
@@ -54,6 +55,7 @@ public:
     bool alarmActive() const { return m_backendAlarmActive; }
     QString alarmMessageZh() const { return m_backendAlarmMessageZh; }
     QVariantList alarmList() const { return m_alarmList; }
+    QVariantMap alarmStates() const { return m_alarmStates; }
 
     bool seatBeltWarningActive() const { return m_seatBeltActive; }
     QString seatBeltMessage() const { return m_seatBeltMessage; }
@@ -77,6 +79,7 @@ public:
 signals:
     void languageChanged();
     void alarmActiveChanged();
+    void alarmStatesChanged();
     void seatBeltWarningChanged();
     void seatIconStatesChanged();
     void movingChanged();
@@ -107,6 +110,7 @@ private:
     bool m_backendAlarmActive = false;
     QString m_backendAlarmMessageZh;
     QVariantList m_alarmList;
+    QVariantMap m_alarmStates;  // alarm name → { active, flash, text_zh, text_en, color }
 
     bool m_seatBeltActive = false;
     QString m_seatBeltMessage;

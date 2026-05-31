@@ -29,8 +29,17 @@ void DashboardBackend::init() {
     m_converter->init(CAN_FIELD_TABLE, CAN_FIELD_TABLE_COUNT);
 
     // 报警 Runtime
-    // 报警回调
     AlarmCallbacks alarmCb = {};
+    alarmCb.onIndicatorUpdate = [](const char* widget_id, bool on, bool flash, float flash_hz, void* user_data) {
+        auto* self = static_cast<DashboardBackend*>(user_data);
+        self->setIndicator(QString::fromUtf8(widget_id), on, flash, flash_hz);
+    };
+    alarmCb.onAlarmTextUpdate = [](const char* text_zh, const char* text_en, void* user_data) {
+        auto* self = static_cast<DashboardBackend*>(user_data);
+        Q_UNUSED(text_en);
+        self->m_backendAlarmMessageZh = QString::fromUtf8(text_zh);
+        emit self->alarmActiveChanged();
+    };
     alarmCb.onAlarmStateChanged = [](const char* alarm_name, bool active, void* user_data) {
         auto* self = static_cast<DashboardBackend*>(user_data);
         self->m_backendAlarmActive = active;
@@ -42,10 +51,21 @@ void DashboardBackend::init() {
             if (count > 0) {
                 self->m_backendAlarmMessageZh = QString::fromUtf8(statuses[0].text_zh);
             }
+            // 更新 alarmStates
+            QVariantMap state;
+            state["active"] = true;
+            state["flash"] = statuses[0].flash;
+            state["text_zh"] = QString::fromUtf8(statuses[0].text_zh);
+            state["text_en"] = QString::fromUtf8(statuses[0].text_en);
+            state["color"] = statuses[0].color;
+            self->m_alarmStates[QString::fromUtf8(alarm_name)] = state;
         } else {
             self->m_backendAlarmMessageZh = "";
+            // 清除该报警的状态
+            self->m_alarmStates.remove(QString::fromUtf8(alarm_name));
         }
         emit self->alarmActiveChanged();
+        emit self->alarmStatesChanged();
     };
     alarmCb.user_data = this;
     m_alarmRuntime = new AlarmRuntime(alarmCb);
@@ -58,7 +78,19 @@ void DashboardBackend::init() {
                              &SEAT_BELT_CONFIG);
 
     // 指示灯 Runtime
-    m_indicatorRuntime = new IndicatorRuntime(IndicatorCallbacks{});
+    IndicatorCallbacks indicatorCb = {};
+    indicatorCb.onStateChange = [](const char* id, bool on, bool flash, float hz, void* user_data) {
+        auto* self = static_cast<DashboardBackend*>(user_data);
+        QString key = QString::fromUtf8(id);
+        QVariantMap state;
+        state["on"] = on;
+        state["flash"] = flash;
+        state["flashHz"] = hz;
+        self->m_indicatorStates[key] = state;
+        emit self->indicatorStatesChanged();
+    };
+    indicatorCb.user_data = this;
+    m_indicatorRuntime = new IndicatorRuntime(indicatorCb);
     m_indicatorRuntime->init(INDICATOR_TABLE, INDICATOR_TABLE_COUNT);
 
     // 语言管理器（默认中文）

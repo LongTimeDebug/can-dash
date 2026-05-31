@@ -16,6 +16,9 @@ src/generated/*
 *.swp
 *~
 
+# qml symlink (points to build/qml/)
+qml
+
 # OS
 .DS_Store
 Thumbs.db

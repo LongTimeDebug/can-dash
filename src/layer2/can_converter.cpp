@@ -16,27 +16,25 @@ uint32_t CanConverter::processFrame(uint32_t can_id, const uint8_t* data,
     for (int i = 0; i < m_tableCount; i++) {
         const CanFieldDef* def = &m_table[i];
         if (def->can_id != can_id) continue;
-        if (def->byte_start >= (int)len) continue;  // 帧不够长，本字段的起始字节不存在
         if (def->byte_end >= (int)len) continue;
 
         uint64_t raw = extractRaw(def, data);
         float value = applyScaleOffset(def, raw);
 
-        // 通过 display_key 名称写入 DisplayData 对应字段
-        if (strcmp(def->display_key, "bat_volt") == 0) {
-            out.bat_volt = value;
-        } else if (strcmp(def->display_key, "bat_curr") == 0) {
-            out.bat_curr = value;
-        } else if (strcmp(def->display_key, "bat_soc") == 0) {
-            out.bat_soc = value;
-        } else if (strcmp(def->display_key, "vehicle_speed") == 0) {
-            out.vehicle_speed = value;
-        } else if (strcmp(def->display_key, "brake") == 0) {
-            out.brake = value;
-        } else if (strcmp(def->display_key, "motor_rpm") == 0) {
-            out.motor_rpm = value;
-        } else if (strcmp(def->display_key, "motor_temp") == 0) {
-            out.motor_temp = value;
+        // 根据字段索引写入 DisplayData（字段顺序与 CAN_FIELD_TABLE 一致）
+        switch (i) {
+            case  0: out.bat_volt = value; break;
+            case  1: out.bat_curr = value; break;
+            case  2: out.bat_soc = (uint8_t)value; break;
+            case  3: out.vehicle_speed = value; break;
+            case  4: out.brake = (uint8_t)value; break;
+            case  5: out.motor_rpm = (int16_t)value; break;
+            case  6: out.motor_temp = (uint8_t)value; break;
+            case  7: out.driver_occupied = (uint8_t)value; break;
+            case  8: out.passenger_occupied = (uint8_t)value; break;
+            case  9: out.driver_buckled = (uint8_t)value; break;
+            case 10: out.passenger_buckled = (uint8_t)value; break;
+            case 11: out.rear_buckle = (uint8_t)value; break;
         }
 
         updated_mask |= (1U << i);

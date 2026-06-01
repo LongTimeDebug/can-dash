@@ -3,8 +3,16 @@
 #include "time_util.h"
 #include <cstdio>
 
-IndicatorRuntime::IndicatorRuntime(IndicatorCallbacks cb)
+IndicatorRuntime::IndicatorRuntime(const IndicatorCallbacks& cb)
     : m_cb(cb) {}
+
+IndicatorRuntime::~IndicatorRuntime() {
+    // m_states 由 init() new 出来，析构时必须释放
+    //  否则反复 init/析构会泄漏（cppcheck: unsafeClassCanLeak）
+    delete[] m_states;
+    m_states = nullptr;
+    m_count = 0;
+}
 
 void IndicatorRuntime::init(const IndicatorDef* table, int table_count) {
     m_table = table;

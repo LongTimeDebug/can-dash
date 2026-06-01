@@ -16,6 +16,8 @@ public:
     SimSocketTransport();
     // 测试用：显式指定 socket 路径（避免污染 /tmp/can_processor_socket）
     explicit SimSocketTransport(const char* socket_path);
+    // NVI 模式：析构里调 closeImpl_() 非虚；suppress 跨编译单元推断误报
+    // cppcheck-suppress virtualCallInConstructor
     ~SimSocketTransport() override;
 
     bool open() override;
@@ -28,6 +30,10 @@ public:
     const char* name() const override { return "sim-socket"; }
 
 private:
+    // NVI 模式：析构函数调此（非虚），public close() 也调此
+    // 避免 cppcheck / MISRA 警告"析构里调虚函数"
+    void closeImpl_();
+
     // 接受新客户端连接（设置 client_fd_）
     // 返回 -1 错误，0 成功
     int acceptClient_();

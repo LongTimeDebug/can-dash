@@ -64,7 +64,7 @@ void VehicleLogic::onSocUpdate(float soc) {
             count++;
         }
     }
-    m_socSmoothed = (count > 0) ? (sum / count) : soc;
+    m_socSmoothed = (count > 0) ? (sum / static_cast<float>(count)) : soc;
     m_soc = soc;
 
     Event e2{/*key=*/"bat_soc", /*value=*/m_socSmoothed, /*prev_value=*/m_lastSoc,

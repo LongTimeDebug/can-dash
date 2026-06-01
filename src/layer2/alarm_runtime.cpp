@@ -3,8 +3,15 @@
 #include "../generated/alarm_rule_def.h"
 #include "time_util.h"
 
-AlarmRuntime::AlarmRuntime(AlarmCallbacks cb)
+AlarmRuntime::AlarmRuntime(const AlarmCallbacks& cb)
     : m_cb(cb) {}
+
+AlarmRuntime::~AlarmRuntime() {
+    // 释放 init() 中 new 出来的 m_states（safety 文档 §4.7 P0 整改项）
+    delete[] m_states;
+    m_states = nullptr;
+    m_ruleCount = 0;
+}
 
 void AlarmRuntime::init(const AlarmRuleDef* rules, int rule_count,
                         const AlarmActionDef* actions, int action_count) {

@@ -19,6 +19,8 @@ class SocketCanTransport final : public ICanTransport {
 public:
     // can_if_name : 接口名（如 "can0", "vcan0", "slcan0"），最长 15 字符
     explicit SocketCanTransport(const char* can_if_name);
+    // NVI 模式：析构里调 closeImpl_() 非虚；suppress 跨编译单元推断误报
+    // cppcheck-suppress virtualCallInConstructor
     ~SocketCanTransport() override;
 
     bool open() override;
@@ -31,6 +33,10 @@ public:
     const char* name() const override { return name_; }
 
 private:
+    // NVI 模式：析构函数调此（非虚），public close() 也调此
+    // 避免 cppcheck / MISRA 警告"析构里调虚函数"
+    void closeImpl_();
+
     char name_[32] = {};  // 例如 "socketcan:can0"
     int  sock_fd_  = -1;
 };

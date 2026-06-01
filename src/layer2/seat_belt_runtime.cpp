@@ -64,7 +64,9 @@ void SeatBeltRuntime::updateCanFrame(uint32_t can_id, const uint8_t* data, size_
 }
 
 bool SeatBeltRuntime::evaluateSeatWarning(int seat_idx, bool occupied, bool buckled) const {
-    const SeatPositionDef* pos = &m_positions[seat_idx];
+    // 注意：本函数不直接使用 m_positions[seat_idx]——
+    //   字段访问由 updateCanFrame() 完成，本函数只基于 (occupied, buckled) 判定。
+    (void)seat_idx;  // 参数保留，签名与上层一致；未来扩展时使用
 
     // 规则1：座位无人
     if (m_config->require_seat_occupied && !occupied) return false;

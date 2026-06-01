@@ -21,7 +21,8 @@ struct IndicatorCallbacks {
 
 class IndicatorRuntime {
 public:
-    explicit IndicatorRuntime(IndicatorCallbacks cb = {});
+    explicit IndicatorRuntime(const IndicatorCallbacks& cb = {});
+    ~IndicatorRuntime();  // 释放 m_states（cppcheck: unsafeClassCanLeak）
 
     void init(const IndicatorDef* table, int table_count);
 

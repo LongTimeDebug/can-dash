@@ -99,7 +99,7 @@ static void alarm_on_indicator(const char* widget_id, bool on, bool flash,
         shm_display_set_indicator(IND_SEATBELT, on, flash, flash_hz);
 }
 
-static void alarm_on_text(const char* text_zh, const char* text_en, void* /*user*/) {
+static void alarm_on_text(const char* text_zh, const char* text_en, void* /*user*/) {  // NOLINT(bugprone-easily-swappable-parameters)
     (void)text_en;
     shm_display_set_alarm(text_zh);
 }

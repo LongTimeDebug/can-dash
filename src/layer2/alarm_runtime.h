@@ -41,7 +41,8 @@ struct AlarmCallbacks {
 
 class AlarmRuntime {
 public:
-    explicit AlarmRuntime(AlarmCallbacks cb = {});
+    explicit AlarmRuntime(const AlarmCallbacks& cb = {});
+    ~AlarmRuntime();  // 释放 m_states（P0：safety 文档 §4.7 / MISRA §2 P0 路线图）
 
     // 初始化（Layer 1 生成的查找表）
     void init(const AlarmRuleDef* rules, int rule_count,

@@ -31,10 +31,6 @@ SocketCanTransport::SocketCanTransport(const char* can_if_name) {
     std::snprintf(name_, sizeof(name_), "socketcan:%s", can_if_name);
 }
 
-SocketCanTransport::~SocketCanTransport() {
-    close();
-}
-
 bool SocketCanTransport::open() {
 #if CANDASH_HAVE_SOCKETCAN
     // 提取接口名（跳过 "socketcan:" 前缀）
@@ -86,16 +82,28 @@ bool SocketCanTransport::open() {
 #endif
 }
 
+SocketCanTransport::~SocketCanTransport() {
+    // cppcheck-suppress virtualCallInConstructor
+    closeImpl_();
+}
+
 void SocketCanTransport::close() {
+    // NVI 模式：public close() → 非虚 closeImpl_()
+    closeImpl_();
+}
+
+void SocketCanTransport::closeImpl_() {
     if (sock_fd_ >= 0) {
         ::close(sock_fd_);
         sock_fd_ = -1;
     }
 }
 
+// NOLINTBEGIN(bugprone-easily-swappable-parameters) — ICanTransport 接口
 bool SocketCanTransport::readFrame(uint32_t& can_id, uint8_t& dlc,
                                    uint8_t* data, size_t data_size,
                                    int timeout_ms) {
+    // NOLINTEND(bugprone-easily-swappable-parameters)
 #if CANDASH_HAVE_SOCKETCAN
     if (sock_fd_ < 0) return false;
     if (data_size < kCanMaxDlc) {

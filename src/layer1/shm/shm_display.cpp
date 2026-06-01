@@ -11,6 +11,8 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <time.h>
+#include <inttypes.h>  // PRIu32
+#include <cmath>       // std::lround
 
 static int g_fd = -1;
 static DisplayDataShm* g_ptr = NULL;
@@ -83,6 +85,11 @@ int shm_display_create(void) {
         fprintf(stderr, "[shm] mmap: %s\n", strerror(errno));
         close(g_fd); unlink(path); g_fd=-1; return -1;
     }
+    // 显式初始化 magic/version（避开 memset on float 警告：
+    //   IEEE 754 0.0 = 全 0 位，memset 0 在我们平台上完全等价于清零，
+    //   但严格 MISRA 建议用赋值。下面的 magic/version 立刻被覆盖，
+    //   其余 464 字节全部 0 等价于 0.0/0/false，与运行时语义一致）
+    // cppcheck-suppress memsetClassFloat
     memset(g_ptr, 0, sizeof(DisplayDataShm));
     // 写 magic + version（保护 ABI 兼容）
     g_ptr->magic = SHM_MAGIC;
@@ -108,8 +115,10 @@ int shm_display_open(void) {
         return -2;  // 区分"文件不存在"和"ABI 不匹配"
     }
     if (g_ptr->version != SHM_VERSION) {
-        fprintf(stderr, "[shm] version mismatch: %u (expected %u) — update both binaries\n",
-                g_ptr->version, SHM_VERSION);
+        // cppcheck: SHM_VERSION 是无符号常量宏，g_ptr->version 是 uint32_t；
+        //   用 PRIu32 避免任何类型假设
+        fprintf(stderr, "[shm] version mismatch: %" PRIu32 " (expected %u) — update both binaries\n",
+                static_cast<uint32_t>(g_ptr->version), SHM_VERSION);
         // 不阻塞运行（不同次版本可兼容），但记录告警
     }
     return 0;
@@ -193,11 +202,12 @@ void shm_display_set_uint16(ShmFieldIndex idx, uint16_t value) {
     shm_display_mark_updated(idx);
 }
 
-void shm_display_set_indicator(ShmIndicatorId id, int on, int flash, float hz) {
+// NOLINT(bugprone-easily-swappable-parameters) — IPC 接口固定: (id, on, flash, hz)
+void shm_display_set_indicator(ShmIndicatorId id, int on, int flash, float hz) {  // NOLINT(bugprone-easily-swappable-parameters)
     if (!g_ptr || id < 0 || id >= SHM_INDICATOR_COUNT) return;
     g_ptr->indicators[id].on = (uint8_t)on;
     g_ptr->indicators[id].flash = (uint8_t)flash;
-    g_ptr->indicators[id].hz_x10 = (uint8_t)(hz * 10 + 0.5f);
+    g_ptr->indicators[id].hz_x10 = static_cast<uint8_t>(std::lround(static_cast<double>(hz) * 10.0));
 }
 
 void shm_display_set_backlight_state(uint8_t state) {

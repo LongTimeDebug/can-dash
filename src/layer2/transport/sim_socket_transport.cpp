@@ -32,10 +32,6 @@ SimSocketTransport::SimSocketTransport(const char* socket_path) {
     owns_path_ = false;  // 测试路径：open() 不 unlink
 }
 
-SimSocketTransport::~SimSocketTransport() {
-    close();
-}
-
 bool SimSocketTransport::open() {
     if (path_[0] == '\0') {
         std::fprintf(stderr, "[SimSocket] no socket path configured\n");
@@ -72,7 +68,17 @@ bool SimSocketTransport::open() {
     return true;
 }
 
+SimSocketTransport::~SimSocketTransport() {
+    // cppcheck-suppress virtualCallInConstructor
+    closeImpl_();
+}
+
 void SimSocketTransport::close() {
+    // NVI 模式：public close() → 非虚 closeImpl_()
+    closeImpl_();
+}
+
+void SimSocketTransport::closeImpl_() {
     if (client_fd_ >= 0) {
         ::close(client_fd_);
         client_fd_ = -1;
@@ -103,8 +109,10 @@ int SimSocketTransport::acceptClient_() {
     return 0;
 }
 
+// NOLINTBEGIN(bugprone-easily-swappable-parameters) — CAN 帧: (can_id, dlc, out_data, out_size) 顺序固定
 bool SimSocketTransport::tryParseFrame_(uint32_t& out_can_id, uint8_t& out_dlc,
                                        uint8_t* out_data, size_t out_size) {
+    // NOLINTEND(bugprone-easily-swappable-parameters)
     if (client_fd_ < 0) return false;
 
     // 尝试从 socket 读更多字节
@@ -162,9 +170,11 @@ bool SimSocketTransport::tryParseFrame_(uint32_t& out_can_id, uint8_t& out_dlc,
     return true;
 }
 
+// NOLINTBEGIN(bugprone-easily-swappable-parameters) — ICanTransport 接口
 bool SimSocketTransport::readFrame(uint32_t& can_id, uint8_t& dlc,
                                    uint8_t* data, size_t data_size,
                                    int timeout_ms) {
+    // NOLINTEND(bugprone-easily-swappable-parameters)
     if (listen_fd_ < 0) return false;
 
     // poll 同时关注 listen_fd（接受新连接）和 client_fd（读数据）

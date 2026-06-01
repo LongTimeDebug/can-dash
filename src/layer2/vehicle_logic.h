@@ -46,20 +46,20 @@ public:
 
 private:
     VehicleConfigDef  m_config;
-    float             m_speed;
-    float             m_lastSpeed;
-    bool              m_speedValid;
-    float             m_targetSpeed;
-    float             m_soc;
-    float             m_socSmoothed;
+    float             m_speed = 0.0f;
+    float             m_lastSpeed = 0.0f;        // cppcheck: 必须初始化，避免 uninitMemberVar
+    bool              m_speedValid = false;
+    float             m_targetSpeed = 0.0f;
+    float             m_soc = 0.0f;
+    float             m_socSmoothed = 0.0f;
     float             m_lastSoc = 0.0f;
-    std::array<float, 10> m_socHistory;
-    int               m_socHistoryIndex;
-    DriveMode         m_driveMode;
-    PrechargeState    m_prechargeState;
-    uint64_t          m_prechargeStartMs;
-    bool              m_readyGoActive;
-    bool              m_hvActive;
-    uint64_t          m_lastSpeedUpdateMs;
-    uint64_t          m_lastTickMs;
+    std::array<float, 10> m_socHistory = {};
+    int               m_socHistoryIndex = 0;
+    DriveMode         m_driveMode = DRIVE_MODE_NORMAL;
+    PrechargeState    m_prechargeState = PRECHARGE_IDLE;
+    uint64_t          m_prechargeStartMs = 0;    // cppcheck: 必须初始化
+    bool              m_readyGoActive = false;
+    bool              m_hvActive = false;
+    uint64_t          m_lastSpeedUpdateMs = 0;
+    uint64_t          m_lastTickMs = 0;
 };

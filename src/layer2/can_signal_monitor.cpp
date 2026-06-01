@@ -4,7 +4,7 @@
 #include <cmath>
 #include <cstdio>
 
-CanSignalMonitor::CanSignalMonitor(MonitorCallbacks cb)
+CanSignalMonitor::CanSignalMonitor(const MonitorCallbacks& cb)
     : m_cb(cb) {}
 
 CanSignalMonitor::~CanSignalMonitor() {
@@ -32,7 +32,8 @@ void CanSignalMonitor::init(const SignalMonitorDef* table, int table_count) {
     }
 }
 
-void CanSignalMonitor::onCanFrame(uint32_t can_id, float value) {
+// NOLINT(bugprone-easily-swappable-parameters) — CAN 帧: (id, dlc, data)
+void CanSignalMonitor::onCanFrame(uint32_t can_id, float value) {  // NOLINT(bugprone-easily-swappable-parameters)
     SignalState* state = findByCanId(can_id);
     if (!state) return;
 
@@ -68,7 +69,7 @@ void CanSignalMonitor::onCanFrame(uint32_t can_id, float value) {
 
         float sum = 0.0f;
         for (int i = 0; i < state->historyCount; i++) sum += state->history[i];
-        state->smoothedValue = sum / state->historyCount;
+        state->smoothedValue = sum / static_cast<float>(state->historyCount);
     } else {
         state->smoothedValue = value;
     }
@@ -92,13 +93,6 @@ void CanSignalMonitor::tick(uint64_t now_ms) {
             updateQuality(state, SIGNAL_STALE, now_ms);
         }
     }
-}
-
-SignalState* CanSignalMonitor::findState(const char* signal) {
-    for (int i = 0; i < m_count; i++) {
-        if (strcmp(m_table[i].name, signal) == 0) return &m_states[i];
-    }
-    return nullptr;
 }
 
 SignalState* CanSignalMonitor::findByCanId(uint32_t can_id) {

@@ -54,7 +54,7 @@ struct MonitorCallbacks {
 
 class CanSignalMonitor {
 public:
-    explicit CanSignalMonitor(MonitorCallbacks cb = {});
+    explicit CanSignalMonitor(const MonitorCallbacks& cb = {});
     ~CanSignalMonitor();
 
     void init(const SignalMonitorDef* table, int table_count);
@@ -72,17 +72,16 @@ public:
     const char* name() const { return "CanSignalMonitor"; }
 
 private:
-    SignalState* findState(const char* signal);
     SignalState* findByCanId(uint32_t can_id);
     void updateQuality(SignalState* state, SignalQuality q, uint64_t now_ms);
 
     static constexpr int MAX_SIGNAL_MONITORS = 32;
     static constexpr int MAX_SIGNAL_HISTORY = 16;  // 每信号最大平滑窗口
 
-    MonitorCallbacks m_cb;
+    MonitorCallbacks m_cb = {};
     const SignalMonitorDef* m_table = nullptr;
     SignalState* m_states = nullptr;
-    float m_historyPool[MAX_SIGNAL_MONITORS][MAX_SIGNAL_HISTORY];  // 静态 history 池
+    float m_historyPool[MAX_SIGNAL_MONITORS][MAX_SIGNAL_HISTORY] = {};  // 静态 history 池，0 初始化
     int m_count = 0;
     uint64_t m_lastTickMs = 0;
 };

@@ -8,6 +8,7 @@ EventBus& EventBus::instance() {
     return bus;
 }
 
+// NOLINTBEGIN(performance-unnecessary-value-param) — std::function 跨订阅 move 代价等同 copy，签名稳定
 int EventBus::subscribe(const std::string& key, EventHandler handler) {
     std::lock_guard<std::mutex> lock(m_mutex);
     int id = m_nextId++;
@@ -15,13 +16,16 @@ int EventBus::subscribe(const std::string& key, EventHandler handler) {
     (void)id;
     return id;
 }
+// NOLINTEND(performance-unnecessary-value-param)
 
+// NOLINTBEGIN(performance-unnecessary-value-param)
 int EventBus::subscribeWildcard(const std::string& pattern, EventHandler handler) {
     std::lock_guard<std::mutex> lock(m_mutex);
     int id = m_nextId++;
     m_subs.push_back({"", pattern, handler});
     return id;
 }
+// NOLINTEND(performance-unnecessary-value-param)
 
 void EventBus::publish(const Event&& event) {
     std::vector<Subscription> subs_copy;

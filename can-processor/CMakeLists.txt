@@ -69,6 +69,26 @@ add_executable(can-processor
     ${GENERATED_SOURCES}
 )
 
+# ── 编译警告（车规：必须 0 warning，CI 把警告当错误）──────────────────
+#  对齐顶级 CMakeLists.txt 的严格级别，外加 -Werror 强制 0 警告。
+add_compile_options(
+    -Wall
+    -Wextra
+    -Wshadow
+    -Wnon-virtual-dtor
+    -Wold-style-cast
+    -Wcast-align
+    -Wunused
+    -Woverloaded-virtual
+    -Wconversion
+    -Wsign-conversion
+    -Wnull-dereference
+    -Wdouble-promotion
+    -Wformat=2
+    -Werror
+    -Wno-unused-parameter  # TODO: 渐进清理
+)
+
 # pthread: shm + 未来多线程
 # rt: clock_gettime
 target_link_libraries(can-processor pthread rt)

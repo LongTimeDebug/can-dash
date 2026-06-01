@@ -1,0 +1,54 @@
+# cppcheck 配置 — can-dash 车规项目
+# 文档：https://cppcheck.sourceforge.io/manual.pdf
+#
+# 核心原则：
+#   - 0 误报容忍 (--inline-suppr + --suppressions-list 兜底)
+#   - 强制覆盖：warning / style / performance / portability
+#   - 包含 generated/ 但不强制（生成代码责任在 yaml_to_c.py）
+#
+# 用法：
+#   cppcheck --project=build-processor/compile_commands.json ...
+
+# 严重级别
+check-level=exhaustive
+
+# 启用检查（all 几乎都开，加几个 strong/extra 的）
+enable=warning,style,performance,portability,information,missingInclude
+
+# 输出格式
+output-format=xml  # 便于 CI 解析
+
+# 平台
+platform=unix64
+
+# C++ 标准
+std=c++17
+
+# 头文件搜索路径
+#include=src
+#include=src/layer1
+#include=src/layer2
+#include=src/layer2/transport
+#include=src/generated
+#include=src/layer1/shm
+include=src/generated
+
+# 误报抑制（项目特有的合理模式）
+suppress=missingIncludeSystem  # 不查系统头
+suppress=unusedFunction:src/layer3/*  # UI 层不编译进 can-processor，函数"未用"是正常的
+suppress=unreadVariable:src/generated/*  # 生成代码
+
+# 误报豁免列表
+inline-suppr
+
+# 不检查的目录
+exclude=build/
+exclude=build-processor/
+exclude=build-test/
+exclude=qml/
+exclude=src/layer3/      # UI 层：can-processor 不用
+exclude=src/ui/
+exclude=tests/          # 测试代码单独跑
+
+# 性能：多线程
+jobs=8

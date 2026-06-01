@@ -1,0 +1,24 @@
+# <type>(<scope>): <subject>
+#
+# Subject: imperative mood, lowercase, no period, max 72 chars.
+# Types:   feat | fix | refactor | perf | test | docs | build | ci | chore | style
+# Scopes:  shm | runtime | backend | qml | codegen | ci | docs
+#
+# Examples:
+#   feat(shm): add CRC32 checksum to DisplayDataShm
+#   fix(backend): emit displayHealth on heartbeat timeout
+#   refactor(runtime): extract alarm policy to pure function
+#   test(shm): cover magic + version + CRC fault injection
+#   ci: split ut-only job from full build job
+#
+# Body (optional, wrap at 72):
+#   - why, not what (the diff shows what)
+#   - link issue / REQ id (Refs: REQ-SYS-005)
+#
+# Footer:
+#   Refs: REQ-XXX-NNN
+#   Breaking-Change: describe migration
+
+# ── DO NOT WRITE BELOW THIS LINE ────────────────────────────────────────
+# This template is enforced by .git/hooks/commit-msg (see tools/install-hooks.sh).
+

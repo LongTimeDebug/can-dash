@@ -1,0 +1,55 @@
+# Pre-commit hooks — install with: python3 tools/install-hooks.sh
+# See https://pre-commit.com for usage. All hooks must pass before push.
+#
+# Why each hook is here:
+#   - trailing-whitespace / end-of-file: clean diffs, no CRLF surprises
+#   - check-yaml / check-json: fail fast on bad config (codegen depends on it)
+#   - check-merge-conflict: never push "<<<<<<<" markers
+#   - detect-private-key: never commit secrets (CI tokens, deploy keys)
+#   - cppcheck: catch null-deref / use-after-free / uninit at lint time
+#   - clang-format: enforce 100-col C++ style
+#   - header-guard: every header must have #ifndef guard
+#   - no-fix-spam: block 3+ consecutive "fix:" commits (see tools/check_fix_spam.sh)
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=512]
+      - id: detect-private-key
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.3.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: []
+
+  - repo: local
+    hooks:
+      - id: header-guard
+        name: enforce #ifndef header guards
+        entry: tools/lint_header_guards.sh
+        language: script
+        types: [c++]
+      - id: no-fix-spam
+        name: "block 3+ consecutive fix: commits"
+        entry: tools/check_fix_spam.sh
+        language: script
+        stages: [commit-msg]
+      - id: cppcheck
+        name: cppcheck (lib + tests, no UI)
+        entry: tools/run_cppcheck.sh
+        language: script
+        types_or: [c, c++]
+        exclude: ^(build/|src/ui/|src/generated/)

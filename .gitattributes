@@ -1,0 +1,29 @@
+# Auto-normalize line endings on commit (text files become LF in repo).
+*               text=auto eol=lf
+
+# C/C++ source: treat as text, force LF even on Windows checkouts.
+*.c             text eol=lf
+*.cpp           text eol=lf
+*.h             text eol=lf
+*.hpp           text eol=lf
+*.cc            text eol=lf
+*.cxx           text eol=lf
+*.qml           text eol=lf
+
+# Scripts and configs: keep LF.
+*.sh            text eol=lf
+*.py            text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+*.json          text eol=lf
+*.md            text eol=lf
+CMakeLists.txt  text eol=lf
+.gitignore      text eol=lf
+
+# Build artifacts: never diff-merge, never normalize.
+*.o             binary
+*.a             binary
+*.so            binary
+*.elf           binary
+*.bin           binary
+build/          -diff -merge

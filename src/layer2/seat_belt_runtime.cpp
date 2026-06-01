@@ -1,6 +1,7 @@
 // seat_belt_runtime.cpp
 #include "seat_belt_runtime.h"
 #include "../generated/seat_belt_def.h"
+#include "time_util.h"
 #include <cstdio>
 
 void SeatBeltRuntime::init(const SeatPositionDef* positions, int position_count,
@@ -55,7 +56,7 @@ void SeatBeltRuntime::updateCanFrame(uint32_t can_id, const uint8_t* data, size_
         seat->beltBuckled = (data[0] >> pos->buckle_bit) & 1;
     }
 
-    seat->lastUpdateMs = 0;  // TODO: 真实时间戳
+    seat->lastUpdateMs = candash::now_monotonic_ms();
 
     // 重新评估该座位
     seat->warning = evaluateSeatWarning(idx, seat->seatOccupied, seat->beltBuckled);

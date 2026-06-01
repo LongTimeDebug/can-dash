@@ -5,6 +5,7 @@
 #include "vehicle_logic.h"
 #include "../layer1/display_data.h"
 #include "event_bus.h"
+#include "time_util.h"
 #include <cmath>
 #include <algorithm>
 
@@ -41,7 +42,7 @@ void VehicleLogic::init(const VehicleConfigDef* config) {
 void VehicleLogic::onSpeedUpdate(float speed, bool valid) {
     m_speed = speed;
     m_speedValid = valid;
-    m_lastSpeedUpdateMs = 0; // TODO: 真实时间戳
+    m_lastSpeedUpdateMs = candash::now_monotonic_ms();
 
     Event e{/*key=*/"vehicle_speed", /*value=*/speed, /*prev_value=*/m_lastSpeed,
             /*timestamp_ms=*/m_lastSpeedUpdateMs, /*source=*/this};
@@ -67,7 +68,7 @@ void VehicleLogic::onSocUpdate(float soc) {
     m_soc = soc;
 
     Event e2{/*key=*/"bat_soc", /*value=*/m_socSmoothed, /*prev_value=*/m_lastSoc,
-            /*timestamp_ms=*/0, /*source=*/this};
+            /*timestamp_ms=*/candash::now_monotonic_ms(), /*source=*/this};
     EventBus::instance().publish(std::move(e2));
 
     m_lastSoc = m_soc;
@@ -80,14 +81,14 @@ void VehicleLogic::onHvStatusUpdate(bool active) {
     if (active && !prev) {
         // 高压上电 → 开始预充电
         m_prechargeState = PRECHARGE_ACTIVE;
-        m_prechargeStartMs = 0; // TODO: 真实时间戳
+        m_prechargeStartMs = candash::now_monotonic_ms();
     } else if (!active) {
         m_prechargeState = PRECHARGE_IDLE;
         m_readyGoActive = false;
     }
 
     Event e3{/*key=*/"hv_status", /*value=*/active ? 1.0f : 0.0f, /*prev_value=*/prev ? 1.0f : 0.0f,
-            /*timestamp_ms=*/0, /*source=*/this};
+            /*timestamp_ms=*/candash::now_monotonic_ms(), /*source=*/this};
     EventBus::instance().publish(std::move(e3));
 }
 

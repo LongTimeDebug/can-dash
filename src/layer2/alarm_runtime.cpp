@@ -1,6 +1,7 @@
 // alarm_runtime.cpp
 #include "alarm_runtime.h"
 #include "../generated/alarm_rule_def.h"
+#include "time_util.h"
 
 AlarmRuntime::AlarmRuntime(AlarmCallbacks cb)
     : m_cb(cb) {}
@@ -53,7 +54,7 @@ void AlarmRuntime::tick(uint64_t current_time_ms) {
 
 void AlarmRuntime::triggerAlarm(AlarmState* alarm) {
     alarm->active = true;
-    alarm->last_triggered_ms = 0;  // TODO: 获取真实时间
+    alarm->last_triggered_ms = candash::now_monotonic_ms();
 
     if (m_cb.onAlarmStateChanged) {
         m_cb.onAlarmStateChanged(alarm->rule->name, true, m_cb.user_data);

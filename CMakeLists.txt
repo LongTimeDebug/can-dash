@@ -1,11 +1,52 @@
 cmake_minimum_required(VERSION 3.20)
-project(can-dash VERSION 1.0.0 LANGUAGES C CXX)
+project(can-dash VERSION 1.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)  # 禁用 GNU 扩展，确保可移植
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
+
+# ─── 编译警告（量产项目必须开 -Wall -Wextra -Werror）──────────────────
+add_compile_options(
+    -Wall
+    -Wextra
+    -Wshadow
+    -Wnon-virtual-dtor
+    -Wold-style-cast
+    -Wcast-align
+    -Wunused
+    -Woverloaded-virtual
+    -Wconversion
+    -Wsign-conversion
+    -Wnull-dereference
+    -Wdouble-promotion
+    -Wformat=2
+    -Wno-unused-parameter  # TODO: 渐进清理
+)
+
+# Release 构建：开 LTO + strip 符号
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    add_compile_options(-O2 -DNDEBUG)
+    add_link_options(-flto)
+endif()
+
+# Sanitizer 选项：cmake -DCANDASH_SANITIZER=address|thread|undefined
+set(CANDASH_SANITIZER "" CACHE STRING "Sanitizer: address, thread, undefined, or empty")
+if(CANDASH_SANITIZER)
+    add_compile_options(-fsanitize=${CANDASH_SANITIZER} -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=${CANDASH_SANITIZER})
+    message(STATUS "Sanitizer enabled: ${CANDASH_SANITIZER}")
+endif()
+
+# 交叉编译支持：cmake -DCMAKE_TOOLCHAIN_FILE=arm-linux-gnueabihf.cmake
+if(CMAKE_CROSSCOMPILING)
+    message(STATUS "Cross-compiling for: ${CMAKE_SYSTEM_NAME} ${CMAKE_SYSTEM_PROCESSOR}")
+endif()
 
 # Qt6 — 找不到时不 abort，只跳过 UI binary
 find_package(Qt6 COMPONENTS Core Qml Quick Svg)
@@ -72,22 +113,35 @@ endif()
 
 # 单元测试
 enable_testing()
+
+# 共享的 Layer 2 测试源（避免重复列表）
+set(LAYER2_TEST_SOURCES
+    ${LAYER2_DIR}/can_converter.cpp
+    ${LAYER2_DIR}/alarm_runtime.cpp
+    ${LAYER2_DIR}/indicator_runtime.cpp
+    ${LAYER2_DIR}/seat_belt_runtime.cpp
+    ${LAYER2_DIR}/can_signal_monitor.cpp
+    ${LAYER2_DIR}/event_bus.cpp
+    ${LAYER2_DIR}/vehicle_logic.cpp
+    ${LAYER2_DIR}/time_util.cpp
+)
+
 add_executable(test_can_converter tests/test_can_converter.cpp
-    ${LAYER2_DIR}/can_converter.cpp ${GENERATED_SOURCES})
+    ${LAYER2_TEST_SOURCES} ${GENERATED_SOURCES})
 target_include_directories(test_can_converter PRIVATE
     ${CMAKE_SOURCE_DIR}/src ${GENERATED_DIR} ${LAYER1_DIR} ${LAYER2_DIR})
 add_dependencies(test_can_converter run_yaml_to_c)
 add_test(NAME CanConverterTest COMMAND test_can_converter)
 
 add_executable(test_alarm_runtime tests/test_alarm_runtime.cpp
-    ${LAYER2_DIR}/alarm_runtime.cpp ${GENERATED_SOURCES})
+    ${LAYER2_TEST_SOURCES} ${GENERATED_SOURCES})
 target_include_directories(test_alarm_runtime PRIVATE
     ${CMAKE_SOURCE_DIR}/src ${GENERATED_DIR} ${LAYER1_DIR} ${LAYER2_DIR})
 add_dependencies(test_alarm_runtime run_yaml_to_c)
 add_test(NAME AlarmRuntimeTest COMMAND test_alarm_runtime)
 
 add_executable(test_seat_belt_runtime tests/test_seat_belt_runtime.cpp
-    ${LAYER2_DIR}/seat_belt_runtime.cpp ${GENERATED_SOURCES})
+    ${LAYER2_TEST_SOURCES} ${GENERATED_SOURCES})
 target_include_directories(test_seat_belt_runtime PRIVATE
     ${CMAKE_SOURCE_DIR}/src ${GENERATED_DIR} ${LAYER1_DIR} ${LAYER2_DIR})
 add_dependencies(test_seat_belt_runtime run_yaml_to_c)
@@ -103,6 +157,7 @@ add_test(NAME EventBusTest COMMAND test_event_bus)
 add_executable(test_vehicle_logic tests/test_vehicle_logic.cpp
     ${LAYER2_DIR}/vehicle_logic.cpp
     ${LAYER2_DIR}/event_bus.cpp
+    ${LAYER2_DIR}/time_util.cpp
     ${GENERATED_SOURCES})
 target_include_directories(test_vehicle_logic PRIVATE
     ${CMAKE_SOURCE_DIR}/src ${GENERATED_DIR} ${LAYER1_DIR} ${LAYER2_DIR})
@@ -110,15 +165,21 @@ add_dependencies(test_vehicle_logic run_yaml_to_c)
 add_test(NAME VehicleLogicTest COMMAND test_vehicle_logic)
 
 add_executable(test_indicator_runtime tests/test_indicator_runtime.cpp
-    ${LAYER2_DIR}/indicator_runtime.cpp ${GENERATED_SOURCES})
+    ${LAYER2_TEST_SOURCES} ${GENERATED_SOURCES})
 target_include_directories(test_indicator_runtime PRIVATE
     ${CMAKE_SOURCE_DIR}/src ${GENERATED_DIR} ${LAYER1_DIR} ${LAYER2_DIR})
 add_dependencies(test_indicator_runtime run_yaml_to_c)
 add_test(NAME IndicatorRuntimeTest COMMAND test_indicator_runtime)
 
 add_executable(test_can_signal_monitor tests/test_can_signal_monitor.cpp
-    ${LAYER2_DIR}/can_signal_monitor.cpp ${GENERATED_SOURCES})
+    ${LAYER2_TEST_SOURCES} ${GENERATED_SOURCES})
 target_include_directories(test_can_signal_monitor PRIVATE
     ${CMAKE_SOURCE_DIR}/src ${GENERATED_DIR} ${LAYER1_DIR} ${LAYER2_DIR})
 add_dependencies(test_can_signal_monitor run_yaml_to_c)
 add_test(NAME CanSignalMonitorTest COMMAND test_can_signal_monitor)
+
+add_executable(test_shm_display tests/test_shm_display.cpp
+    ${LAYER1_DIR}/shm/shm_display.cpp)
+target_include_directories(test_shm_display PRIVATE
+    ${CMAKE_SOURCE_DIR}/src ${LAYER1_DIR} ${LAYER1_DIR}/shm)
+add_test(NAME ShmDisplayTest COMMAND test_shm_display)

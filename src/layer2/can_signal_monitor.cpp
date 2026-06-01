@@ -1,5 +1,6 @@
 // can_signal_monitor.cpp
 #include "can_signal_monitor.h"
+#include "time_util.h"
 #include <cmath>
 #include <cstdio>
 
@@ -39,13 +40,14 @@ void CanSignalMonitor::onCanFrame(uint32_t can_id, float value) {
     state->prevValue = state->lastValue;
     state->lastValue = value;
     state->received = true;
-    state->lastUpdateMs = 0; // TODO: 真实时间戳
+    uint64_t now = candash::now_monotonic_ms();
+    state->lastUpdateMs = now;
 
-    if (state->firstSeenMs == 0) state->firstSeenMs = state->lastUpdateMs;
+    if (state->firstSeenMs == 0) state->firstSeenMs = now;
 
     // 范围检测
     if (value < def->min_value || value > def->max_value) {
-        updateQuality(state, SIGNAL_INVALID_RANGE, state->lastUpdateMs);
+        updateQuality(state, SIGNAL_INVALID_RANGE, now);
         return;
     }
 
@@ -54,7 +56,7 @@ void CanSignalMonitor::onCanFrame(uint32_t can_id, float value) {
         (state->quality == SIGNAL_GOOD || state->quality == SIGNAL_STALE)) {
         float delta = std::fabs(value - state->prevValue);
         if (delta > def->max_delta) {
-            updateQuality(state, SIGNAL_ABNORMAL_DELTA, state->lastUpdateMs);
+            updateQuality(state, SIGNAL_ABNORMAL_DELTA, now);
             return;
         }
     }
@@ -71,7 +73,7 @@ void CanSignalMonitor::onCanFrame(uint32_t can_id, float value) {
         state->smoothedValue = value;
     }
 
-    updateQuality(state, SIGNAL_GOOD, state->lastUpdateMs);
+    updateQuality(state, SIGNAL_GOOD, now);
 
     if (m_cb.onValueUpdated) {
         m_cb.onValueUpdated(def->name, state->smoothedValue, m_cb.user_data);

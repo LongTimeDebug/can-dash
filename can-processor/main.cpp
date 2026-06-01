@@ -14,12 +14,17 @@
 #include "layer2/alarm_runtime.h"
 #include "layer2/indicator_runtime.h"
 #include "layer2/seat_belt_runtime.h"
+#include "layer2/time_util.h"
 #include "can_field_def.h"
 #include "alarm_rule_def.h"
 #include "indicator_def.h"
 #include "seat_belt_def.h"
 
 #define RX_BUFFER_SIZE 256
+#define TICK_PERIOD_MS 100
+
+// 内存屏障，确保共享内存写入对 reader 进程可见
+#define SHM_BARRIER() __sync_synchronize()
 
 static CanConverter g_converter;
 static AlarmRuntime* g_alarmRuntime = nullptr;
@@ -190,12 +195,13 @@ static void process_can_frame(uint32_t can_id, const uint8_t* data, size_t len) 
 
 // ─── Unix Socket 服务器 ────────────────────────────────────
 static int setup_socket(void) {
-    unlink(SOCKET_PATH);
+    const char* path = socket_get_path();
+    unlink(path);
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0) return -1;
     struct sockaddr_un addr = {};
     addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, SOCKET_PATH, sizeof(addr.sun_path) - 1);
+    strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
     if (bind(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) { close(fd); return -1; }
     if (listen(fd, 3) < 0) { close(fd); return -1; }
     return fd;
@@ -238,7 +244,8 @@ int main(int argc, char** argv) {
     uint8_t rx_buf[RX_BUFFER_SIZE];
     int rx_len = 0;
     int client_fd = -1;
-    uint64_t tick_ms = 0;
+    uint64_t last_tick_ms = 0;
+    uint64_t tick_ms = candash::now_monotonic_ms();
 
     printf("[Processor] Ready.\n");
 
@@ -247,7 +254,7 @@ int main(int argc, char** argv) {
         pfd[0].fd = listen_fd; pfd[0].events = POLLIN;
         if (client_fd >= 0) { pfd[1].fd = client_fd; pfd[1].events = POLLIN; }
 
-        int n = poll(pfd, client_fd >= 0 ? 2 : 1, 100);
+        int n = poll(pfd, client_fd >= 0 ? 2 : 1, TICK_PERIOD_MS);
         if (n < 0) break;
 
         if (pfd[0].revents & POLLIN) {
@@ -281,11 +288,16 @@ int main(int argc, char** argv) {
             }
         }
 
-        tick_ms += 100;
-        alarmRuntime.tick(tick_ms);
-        indRuntime.tick(tick_ms);
-
-        if (client_fd >= 0) shm_display_commit();
+        tick_ms = candash::now_monotonic_ms();
+        if (tick_ms - last_tick_ms >= TICK_PERIOD_MS) {
+            alarmRuntime.tick(tick_ms);
+            indRuntime.tick(tick_ms);
+            if (client_fd >= 0) {
+                SHM_BARRIER();
+                shm_display_commit();
+            }
+            last_tick_ms = tick_ms;
+        }
     }
 
     if (client_fd >= 0) close(client_fd);

@@ -4,6 +4,7 @@
 
 #include "dashboard_backend_qt.h"
 #include "layer1/shm/shm_display.h"
+#include "layer2/time_util.h"
 #include "layer2/language_manager.h"
 
 #include <QTimer>
@@ -43,15 +44,60 @@ void DashboardBackend::onTick() {
     static uint64_t last_ts = 0;
     static bool ever_connected = false;
 
+    // ─── 健康监测：基于 monotonic 毫秒检测 processor 心跳 ───
+    int health = shm_display_health_check();
+    const uint64_t now = candash::now_monotonic_ms();
+    const uint64_t age = shm_display_age_ms(now);
+    const bool wasOnline = m_processorOnline;
+    if (health != 0) {
+        m_processorOnline = false;
+        m_processorStatus = QStringLiteral("disconnected");
+    } else if (age == UINT64_MAX) {
+        // 已连接但还没收到第一帧
+        m_processorOnline = false;
+        m_processorStatus = QStringLiteral("waiting");
+    } else if (age > SHM_HEARTBEAT_TIMEOUT_MS) {
+        m_processorOnline = false;
+        m_processorStatus = QStringLiteral("stale");
+    } else {
+        m_processorOnline = true;
+        m_processorStatus = QStringLiteral("ok");
+    }
+    if (m_processorOnline) m_lastSeenMs = now;
+    if (m_processorOnline != wasOnline) {
+        qWarning() << "[Dashboard] Processor status:" << m_processorStatus
+                   << "(age=" << age << "ms)";
+        emit processorHealthChanged();
+    }
+
+    // 离线时不读取旧数据（防 stale UI）
+    if (!m_processorOnline) {
+        if (wasOnline && !m_processorOnline) {
+            // 刚掉线，通知 QML 清空（保持背板/灰显）
+        }
+        return;
+    }
+
+    // ─── 轮询 + 读取 ───────────────────────────────
     uint64_t ts = shm_display_poll(last_ts);
     if (ts == last_ts) return;  // 无变化
     last_ts = ts;
 
     DisplayDataShm data = {};
-    shm_display_read(&data);
+    int rc = shm_display_read(&data, nullptr);
+    if (rc < 0) {
+        // -2 ABI 不匹配 / -3 checksum 错 — 都不应静默吞掉
+        static int last_err = 0;
+        if (rc != last_err) {
+            qWarning() << "[Dashboard] shm_display_read failed:" << rc
+                       << "(-2=ABI, -3=checksum)";
+            last_err = rc;
+        }
+        return;
+    }
 
     if (!ever_connected) {
-        qDebug() << "[Dashboard] Processor connected (timestamp:" << ts << ")";
+        qDebug() << "[Dashboard] Processor connected (commit_ms:" << ts << ")";
         ever_connected = true;
     }
 

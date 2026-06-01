@@ -7,8 +7,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="$SCRIPT_DIR/build"
 
 echo "=== 1. 生成 C 代码 ==="
-/home/cjl/.local/bin/python3.11 tools/yaml_to_c.py
-python3 tools/fix_generated.py src/generated
+# Auto-detect python (优先 python3.11，回退 python3)
+PYTHON=$(command -v python3.11 || command -v python3)
+if [ -z "$PYTHON" ]; then
+    echo "ERROR: python3 not found" >&2
+    exit 1
+fi
+"$PYTHON" tools/yaml_to_c.py
+"$PYTHON" tools/fix_generated.py src/generated
 
 echo "=== 2. CMake 配置 ==="
 mkdir -p "$BUILD_DIR"

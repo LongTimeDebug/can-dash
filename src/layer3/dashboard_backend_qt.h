@@ -35,6 +35,10 @@ class DashboardBackend : public QObject {
     Q_PROPERTY(QString currentLanguage READ currentLanguage NOTIFY languageChanged)
     Q_PROPERTY(QString currentFont READ currentFont NOTIFY languageChanged)
 
+    // ─── 处理器健康（QML 绑定，超时显示降级 UI）───
+    Q_PROPERTY(bool processorOnline READ processorOnline NOTIFY processorHealthChanged)
+    Q_PROPERTY(QString processorStatus READ processorStatus NOTIFY processorHealthChanged)
+
 public:
     explicit DashboardBackend(QObject* parent = nullptr);
     ~DashboardBackend();
@@ -64,6 +68,10 @@ public:
     QString currentLanguage() const { return m_currentLanguage; }
     QString currentFont() const;
 
+    // 健康状态
+    bool processorOnline() const { return m_processorOnline; }
+    QString processorStatus() const { return m_processorStatus; }
+
     // 指示灯查询
     Q_INVOKABLE bool indicatorOn(const QString& key) const;
 
@@ -79,6 +87,7 @@ signals:
     void movingChanged();
     void displayDataChanged();
     void languageChanged();
+    void processorHealthChanged();
 
 public slots:
     void onTick();
@@ -104,4 +113,9 @@ private:
     QVariantMap m_indicatorStates;
 
     QTimer* m_tickTimer = nullptr;
+
+    // 处理器健康状态（dash 端监测）
+    bool m_processorOnline = false;
+    QString m_processorStatus = QStringLiteral("disconnected");
+    uint64_t m_lastSeenMs = 0;
 };

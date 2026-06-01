@@ -1,57 +1,136 @@
 // shm_display.cpp
 // 使用 /dev/shm/can_display 路径 + 常规文件 open() + mmap
+// 路径可通过 CANDASH_SHM_PATH / CANDASH_SOCKET_PATH 环境变量覆盖
 #include "shm_display.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <time.h>
 
 static int g_fd = -1;
 static DisplayDataShm* g_ptr = NULL;
 
+// ─── 真实时间戳（CLOCK_MONOTONIC，防止系统时间跳变）────────
+static uint64_t monotonic_ms(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000ULL + (uint64_t)ts.tv_nsec / 1000000ULL;
+}
+
+// ─── CRC32-IEEE 802.3（查表 256 项）────────────────────────
+static uint32_t crc32_table[256];
+static int crc32_table_init = 0;
+static void crc32_init(void) {
+    if (crc32_table_init) return;
+    for (uint32_t i = 0; i < 256; i++) {
+        uint32_t c = i;
+        for (int k = 0; k < 8; k++)
+            c = (c & 1) ? (SHM_CRC32_POLY ^ (c >> 1)) : (c >> 1);
+        crc32_table[i] = c;
+    }
+    crc32_table_init = 1;
+}
+
+static uint32_t crc32_compute(const void* buf, size_t len) {
+    crc32_init();
+    const uint8_t* p = (const uint8_t*)buf;
+    uint32_t c = 0xFFFFFFFFU;
+    for (size_t i = 0; i < len; i++)
+        c = crc32_table[(c ^ p[i]) & 0xFF] ^ (c >> 8);
+    return c ^ 0xFFFFFFFFU;
+}
+
+// 计算结构体 checksum（跳过 magic/version/checksum 自身：offset 0..11 不算，20 不算）
+// 覆盖范围：offset 12..N-1（共 N-16 字节）
+static uint32_t compute_checksum(const DisplayDataShm* d) {
+    const uint8_t* base = (const uint8_t*)d;
+    // 跳过 [0..11]=magic+version+last_commit_ms(8 字节共到 16-1=15？)
+    // 实际：magic(0..3) version(4..7) last_commit_ms(8..15) updated_mask(16..19) checksum(20..23) motor_rpm(24..)
+    // 要排除的：0..23（含 magic/version/last_commit_ms/updated_mask/checksum）
+    // 包含的：24..N-1
+    return crc32_compute(base + 24, sizeof(DisplayDataShm) - 24);
+}
+
+// ─── 运行时路径解析 ─────────────────────────────────────
+const char* shm_display_get_path(void) {
+    const char* env = getenv("CANDASH_SHM_PATH");
+    return (env && env[0]) ? env : SHM_DISPLAY_PATH;
+}
+
+const char* socket_get_path(void) {
+    const char* env = getenv("CANDASH_SOCKET_PATH");
+    return (env && env[0]) ? env : SOCKET_PATH;
+}
+
 // ─── 创建（processor用）────────────────────────────────
 int shm_display_create(void) {
-    unlink(SHM_DISPLAY_PATH);
-    g_fd = open(SHM_DISPLAY_PATH, O_RDWR | O_CREAT | O_EXCL, 0664);
-    if (g_fd < 0) { fprintf(stderr, "[shm] create: %s\n", strerror(errno)); return -1; }
+    const char* path = shm_display_get_path();
+    unlink(path);
+    g_fd = open(path, O_RDWR | O_CREAT | O_EXCL, 0664);
+    if (g_fd < 0) { fprintf(stderr, "[shm] create %s: %s\n", path, strerror(errno)); return -1; }
     if (ftruncate(g_fd, sizeof(DisplayDataShm)) < 0) {
         fprintf(stderr, "[shm] ftruncate: %s\n", strerror(errno));
-        close(g_fd); unlink(SHM_DISPLAY_PATH); g_fd=-1; return -1;
+        close(g_fd); unlink(path); g_fd=-1; return -1;
     }
     g_ptr = (DisplayDataShm*)mmap(NULL, sizeof(DisplayDataShm),
                                    PROT_READ|PROT_WRITE, MAP_SHARED, g_fd, 0);
     if (g_ptr == MAP_FAILED) {
         fprintf(stderr, "[shm] mmap: %s\n", strerror(errno));
-        close(g_fd); unlink(SHM_DISPLAY_PATH); g_fd=-1; return -1;
+        close(g_fd); unlink(path); g_fd=-1; return -1;
     }
     memset(g_ptr, 0, sizeof(DisplayDataShm));
+    // 写 magic + version（保护 ABI 兼容）
+    g_ptr->magic = SHM_MAGIC;
+    g_ptr->version = SHM_VERSION;
     return 0;
 }
 
 // ─── 打开（dash用）─────────────────────────────────────
 int shm_display_open(void) {
-    g_fd = open(SHM_DISPLAY_PATH, O_RDONLY);
+    const char* path = shm_display_get_path();
+    g_fd = open(path, O_RDONLY);
     if (g_fd < 0) return -1;
     g_ptr = (DisplayDataShm*)mmap(NULL, sizeof(DisplayDataShm),
                                    PROT_READ, MAP_SHARED, g_fd, 0);
     if (g_ptr == MAP_FAILED) { close(g_fd); g_fd=-1; return -1; }
+    // 校验 magic（保护 ABI 兼容）
+    if (g_ptr->magic != SHM_MAGIC) {
+        fprintf(stderr, "[shm] magic mismatch: 0x%08X (expected 0x%08X) — incompatible processor binary\n",
+                g_ptr->magic, SHM_MAGIC);
+        munmap(g_ptr, sizeof(DisplayDataShm));
+        close(g_fd);
+        g_ptr = NULL; g_fd = -1;
+        return -2;  // 区分"文件不存在"和"ABI 不匹配"
+    }
+    if (g_ptr->version != SHM_VERSION) {
+        fprintf(stderr, "[shm] version mismatch: %u (expected %u) — update both binaries\n",
+                g_ptr->version, SHM_VERSION);
+        // 不阻塞运行（不同次版本可兼容），但记录告警
+    }
     return 0;
 }
 
 // ─── 轮询 ──────────────────────────────────────────────
 uint64_t shm_display_poll(uint64_t last_ts) {
     if (!g_ptr) return last_ts;
-    return g_ptr->timestamp;
+    return g_ptr->last_commit_ms;
 }
 
 // ─── 读（dash用）───────────────────────────────────────
-uint64_t shm_display_read(DisplayDataShm* out) {
-    if (!g_ptr || !out) return 0;
+// 返回值：0=OK；-1=未连接；-2=ABI 不匹配；-3=checksum 校验失败
+// out_timestamp_ms: 写入上次 commit 的 monotonic 毫秒
+int shm_display_read(DisplayDataShm* out, uint64_t* out_timestamp_ms) {
+    if (!g_ptr || !out) return -1;
+    if (g_ptr->magic != SHM_MAGIC) return -2;
     memcpy(out, g_ptr, sizeof(DisplayDataShm));
-    return g_ptr->timestamp;
+    if (out_timestamp_ms) *out_timestamp_ms = g_ptr->last_commit_ms;
+    if (out->checksum != compute_checksum(out)) return -3;
+    return 0;
 }
 
 // ─── 写整个结构（processor用）──────────────────────────
@@ -138,10 +217,11 @@ void shm_display_set_alarm(const char* text_zh) {
     }
 }
 
-// ─── 提交（递增timestamp，sync）────────────────────────
+// ─── 提交（写 monotonic 毫秒 + 重算 checksum + msync）────────
 void shm_display_commit(void) {
     if (!g_ptr) return;
-    g_ptr->timestamp++;
+    g_ptr->last_commit_ms = monotonic_ms();
+    g_ptr->checksum = compute_checksum(g_ptr);
     msync(g_ptr, sizeof(DisplayDataShm), MS_SYNC);
 }
 
@@ -150,4 +230,19 @@ void shm_display_close(void) {
     if (g_ptr && g_ptr != (void*)MAP_FAILED) munmap(g_ptr, sizeof(DisplayDataShm));
     if (g_fd >= 0) close(g_fd);
     g_ptr = NULL; g_fd = -1;
+}
+
+// ─── 健康监测 ──────────────────────────────────────────
+int shm_display_health_check(void) {
+    if (!g_ptr) return -1;
+    if (g_ptr->magic != SHM_MAGIC) return -2;  // ABI 不匹配
+    return 0;
+}
+
+uint64_t shm_display_age_ms(uint64_t now_ms) {
+    if (!g_ptr) return UINT64_MAX;
+    if (g_ptr->magic != SHM_MAGIC) return UINT64_MAX;  // ABI 不匹配
+    if (g_ptr->last_commit_ms == 0) return UINT64_MAX;  // 还没收到第一帧
+    if (now_ms < g_ptr->last_commit_ms) return 0;       // 时钟回退保护
+    return now_ms - g_ptr->last_commit_ms;
 }

@@ -1,5 +1,6 @@
 // indicator_runtime.cpp
 #include "indicator_runtime.h"
+#include "time_util.h"
 #include <cstdio>
 
 IndicatorRuntime::IndicatorRuntime(IndicatorCallbacks cb)
@@ -26,7 +27,7 @@ void IndicatorRuntime::setIndicator(const char* widget_id, bool on, bool flash, 
     state->on = on;
     state->flash = flash;
     state->flashHz = hz;
-    state->lastChangeMs = 0; // TODO: 真实时间戳
+    state->lastChangeMs = candash::now_monotonic_ms();
 
     if (m_cb.onStateChange) {
         m_cb.onStateChange(widget_id, on, flash, hz, m_cb.user_data);

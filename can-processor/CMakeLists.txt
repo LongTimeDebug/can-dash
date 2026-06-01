@@ -4,8 +4,11 @@ project(can-processor CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(CAN_DASH_ROOT /home/cjl/can-dash)
+# Auto-detect can-dash root from parent of can-processor/ — no hardcoded paths
+set(CAN_DASH_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/..)
+get_filename_component(CAN_DASH_ROOT ${CAN_DASH_ROOT} ABSOLUTE)
 set(GENERATED_DIR ${CAN_DASH_ROOT}/src/generated)
+message(STATUS "can-dash root: ${CAN_DASH_ROOT}")
 
 include_directories(
     ${CAN_DASH_ROOT}/src

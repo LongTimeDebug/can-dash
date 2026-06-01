@@ -10,8 +10,44 @@
 extern "C" {
 #endif
 
-#define SHM_DISPLAY_PATH  "/dev/shm/can_display"
-#define SOCKET_PATH       "/tmp/can_processor_socket"
+// 共享内存路径可通过环境变量覆盖（量产环境部署到 /var/run 等）
+// 优先级：CANDASH_SHM_PATH 环境变量 > CMAKE 编译时宏 > 默认
+#ifndef SHM_DISPLAY_PATH
+#  ifdef CANDASH_DEFAULT_SHM_PATH
+#    define SHM_DISPLAY_PATH CANDASH_DEFAULT_SHM_PATH
+#  else
+#    define SHM_DISPLAY_PATH "/dev/shm/can_display"
+#  endif
+#endif
+
+#ifndef SOCKET_PATH
+#  ifdef CANDASH_DEFAULT_SOCKET_PATH
+#    define SOCKET_PATH CANDASH_DEFAULT_SOCKET_PATH
+#  else
+#    define SOCKET_PATH "/tmp/can_processor_socket"
+#  endif
+#endif
+
+// 解析运行时路径（环境变量 > 编译时默认）
+const char* shm_display_get_path(void);
+const char* socket_get_path(void);
+
+// ─── 共享内存 ABI 标识 ──────────────────────────────────
+// Magic: 固定标识，processor/dash 必须一致，否则拒绝打开（防 ABI 错乱）
+// Version: 兼容版本号，major.minor.patch × 10000 + minor × 100 + patch
+#define SHM_MAGIC       0xCA07D15A  // "CANDASH" 标识
+#define SHM_VERSION_MAJOR  1
+#define SHM_VERSION_MINOR  1
+#define SHM_VERSION_PATCH  0
+#define SHM_VERSION     ((SHM_VERSION_MAJOR * 10000) + (SHM_VERSION_MINOR * 100) + SHM_VERSION_PATCH)
+
+// 健康监测：处理器心跳超时阈值（dash 端使用）
+#ifndef SHM_HEARTBEAT_TIMEOUT_MS
+#define SHM_HEARTBEAT_TIMEOUT_MS 500
+#endif
+
+// 共享内存 CRC32 多项式（IEEE 802.3）— 用于结构体完整性校验
+#define SHM_CRC32_POLY 0xEDB88320U
 
 typedef enum {
     SHM_FIELD_TIMESTAMP = 0,
@@ -52,8 +88,11 @@ typedef struct {
 #define SHM_ALARM_TEXT_LEN 128
 
 typedef struct {
-    uint64_t  timestamp;
-    uint32_t  updated_mask;
+    uint32_t  magic;              // ABI magic = SHM_MAGIC
+    uint32_t  version;            // ABI version = SHM_VERSION
+    uint64_t  last_commit_ms;     // processor 上次 commit 的 CLOCK_MONOTONIC 毫秒
+    uint32_t  updated_mask;       // bit[i]=1 表示字段 i 已更新（消费后可清除）
+    uint32_t  checksum;           // CRC32 of struct bytes [12..N-1]（不含 magic/version/checksum）
     // Basic fields (same as before)
     float     motor_rpm;
     float     vehicle_speed;
@@ -85,7 +124,7 @@ typedef struct {
     uint8_t   alarm_active;
     char      alarm_message_zh[SHM_ALARM_TEXT_LEN];
     ShmIndicatorSlot indicators[SHM_INDICATOR_COUNT];
-    uint8_t   _padding[235];     // remaining space to 512 bytes
+    uint8_t   _padding[231];     // 保持总大小不变（新增 checksum 4 字节，padding 减 4）
 } DisplayDataShm;
 
 
@@ -109,10 +148,16 @@ void shm_display_mark_updated(ShmFieldIndex idx);
 void shm_display_commit(void);
 
 // dash端
-int shm_display_open(void);
-uint64_t shm_display_read(DisplayDataShm* out_data);
+int      shm_display_open(void);
+// 返回值：0=OK；-1=未连接；-2=ABI 不匹配；-3=checksum 校验失败
+// out_timestamp_ms: 写入上次 commit 的 monotonic 毫秒（NULL 忽略）
+int      shm_display_read(DisplayDataShm* out_data, uint64_t* out_timestamp_ms);
 uint64_t shm_display_poll(uint64_t last_timestamp);
-void shm_display_close(void);
+void     shm_display_close(void);
+
+// 健康监测（dash 端用）
+int      shm_display_health_check(void);              // 0=OK, -1=未连接, -2=ABI 不匹配
+uint64_t shm_display_age_ms(uint64_t now_ms);         // 距上次 commit 的毫秒数，UINT64_MAX=未连接
 
 #ifdef __cplusplus
 }

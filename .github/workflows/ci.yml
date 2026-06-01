@@ -1,8 +1,11 @@
 name: CI
 
-# ⚠️ CI 结果仅供参考，不影响发布决策
-# Qt 模块在 GitHub Actions 环境中会报错，build job 失败不代表代码有问题
-# 本项目 Qt GUI 需要本地桌面环境编译验证
+# 策略：lint + ut + validate-yaml 是核心（必须绿），不依赖 Qt 安装。
+# 老 build job 用 jurplel/qt6-git 装 Qt 在 hosted runner 上反复失败，
+# 且仓库的 find_package(Qt6) 是 optional —— 没 Qt 也能跑所有 Layer 1/2 测试。
+# 完整 Qt GUI 烟雾测试留给本地 ./build.sh，不阻塞 PR。
+#
+# 历史上 4 次 "fix CI" commit 全是 Qt 装包问题。这次彻底绕开。
 
 on:
   push:
@@ -10,51 +13,65 @@ on:
   pull_request:
     branches: [main, master]
 
+# 取消同一 ref 上前次未完成的 in-progress run，避免新 push 排队
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
+  lint:
+    name: Lint (header guards, cppcheck)
     runs-on: ubuntu-24.04
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Qt6 (via Qt Online Installer)
-        uses: jurplel/qt6-git:1.2.0
+      - uses: actions/checkout@v4
         with:
-          version: '6.7.0'
-          components: 'qtbase qtdeclarative qtquick3d qtquickcontrols2 qtgraphs qttools'
-          cache: true
-
-      - name: Install system deps
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq \
-            build-essential cmake ninja-build \
-            libgl1-mesa-dev libxkbcommon-x11-dev libdbus-1-dev \
-            python3-pip python3-yaml python3-jsonschema python3-pydantic
-          pip3 install --quiet pyyaml jsonschema pydantic cantools python-can
-
-      - name: CMake configure
-        run: |
-          cmake -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_PREFIX_PATH="${{ env.Qt6_DIR }}/lib/cmake"
-
-      - name: Build
-        run: cmake --build build --parallel
-
-      - name: Unit tests
-        run: |
-          cd build
-          ctest --output-on-failure -j$(nproc)
+          fetch-depth: 10
+      - name: Install cppcheck
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq cppcheck
+      - name: Header guard check
+        run: bash tools/lint_header_guards.sh
+      - name: Cppcheck (layer1 + layer2 + tests)
+        run: bash tools/run_cppcheck.sh
 
   validate-yaml:
-    runs-on: ubuntu-latest
+    name: Validate YAML config
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Install deps
         run: pip3 install --quiet pyyaml jsonschema pydantic cantools python-can
-      - name: Validate YAML
+      - name: Validate config
+        run: python3 tools/validate.py
+
+  ut:
+    name: Unit tests (no Qt)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build deps
         run: |
-          cd ${{ github.workspace }}
-          python3 tools/validate.py
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            build-essential cmake ninja-build \
+            python3-pip python3-yaml python3-jsonschema python3-pydantic
+          pip3 install --quiet pyyaml jsonschema pydantic cantools python-can
+      - name: Generate code from YAML
+        run: |
+          python3 tools/yaml_to_c.py
+          python3 tools/fix_generated.py src/generated
+          python3 tools/qml_generator.py || true
+          touch src/generated/.generated_stamp
+      - name: Configure (Qt-less; find_package will report NOTFOUND and skip UI)
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build (only the *_test targets; can-dash binary requires Qt and is skipped)
+        run: |
+          cmake --build build --target \
+            test_can_converter test_alarm_runtime test_seat_belt_runtime \
+            test_event_bus test_vehicle_logic test_indicator_runtime \
+            test_can_signal_monitor test_shm_display test_time_util \
+            --parallel -j$(nproc)
+      - name: Run tests
+        run: |
+          cd build
+          ctest --output-on-failure -j$(nproc)

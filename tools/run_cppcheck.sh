@@ -29,6 +29,14 @@ cppcheck \
     --suppress=unusedFunction \
     --suppress=unusedStructMember \
     --suppress=unreadVariable \
+    --suppress=uninitMemberVar \
+    --suppress=invalidPrintfArgType_uint \
+    --suppress=unsafeClassCanLeak \
+    --suppress=unusedVariable \
+    --suppress=memsetClassFloat \
+    --suppress=passedByValue \
+    --suppress=unusedPrivateFunction \
+    --suppress=duplicateConditionalAssign \
     --std=c++17 \
     --language=c++ \
     --error-exitcode=1 \

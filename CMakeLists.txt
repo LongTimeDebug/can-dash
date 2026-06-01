@@ -183,3 +183,9 @@ add_executable(test_shm_display tests/test_shm_display.cpp
 target_include_directories(test_shm_display PRIVATE
     ${CMAKE_SOURCE_DIR}/src ${LAYER1_DIR} ${LAYER1_DIR}/shm)
 add_test(NAME ShmDisplayTest COMMAND test_shm_display)
+
+add_executable(test_time_util tests/test_time_util.cpp
+    ${LAYER2_DIR}/time_util.cpp)
+target_include_directories(test_time_util PRIVATE
+    ${CMAKE_SOURCE_DIR}/src ${LAYER2_DIR})
+add_test(NAME TimeUtilTest COMMAND test_time_util)

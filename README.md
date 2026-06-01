@@ -20,8 +20,14 @@ pip install pyyaml jsonschema pydantic cantools python-can
 python tools/validate.py
 python tools/yaml_to_c.py
 
-# 3. 编译
-make -j$(nproc)
+# 3. 编译（CMake）
+./build.sh                         # 默认 = 全量构建 + 跑测试
+./build.sh ut                      # 只跑 Layer 1/2 单元测试（无 Qt，< 30s）
+./build.sh gui                     # 只编 Qt UI
+
+# 或手动：
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
 
 # 4. PC 仿真（两终端）
 ./can-dash                          # 终端1：启动仪表
@@ -56,6 +62,18 @@ can_sim/             PC 仿真引擎
 ## AI 开发
 
 AI 请先阅读 `ARCHITECTURE.md`，修改配置前运行 `python tools/validate.py` 校验 YAML。
+
+## 贡献流程
+
+请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。要点：
+- commit 信息遵守 Conventional Commits（`feat:` `fix:` `refactor:` `test:` `docs:` `ci:` `chore:`），git hook 会强制
+- 连续 3 个 `fix:` 会被 hook 拒绝 — 鼓励用 `refactor:` 找根因
+- 改完跑 `./build.sh ut`（无 Qt，< 30s）
+- 安装本地 hook：`python3 tools/install-hooks.sh`
+
+## CI
+
+GitHub Actions 跑 4 个 job：lint（header 守卫 + cppcheck）、validate-yaml、ut（无 Qt 单元测试）、build（main 分支全量 Qt 构建）。详见 `.github/workflows/ci.yml`。
 
 ## 许可证
 

@@ -1,6 +1,7 @@
 # build artifacts
 build/
 build-processor/
+build-test/
 qml/
 *.o
 *.a

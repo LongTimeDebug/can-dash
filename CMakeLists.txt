@@ -189,3 +189,14 @@ add_executable(test_time_util tests/test_time_util.cpp
 target_include_directories(test_time_util PRIVATE
     ${CMAKE_SOURCE_DIR}/src ${LAYER2_DIR})
 add_test(NAME TimeUtilTest COMMAND test_time_util)
+
+# Transport layer tests（sim-socket + socketcan + factory）
+add_executable(test_transport tests/test_transport.cpp
+    ${LAYER2_DIR}/transport/sim_socket_transport.cpp
+    ${LAYER2_DIR}/transport/socketcan_transport.cpp
+    ${LAYER2_DIR}/transport/transport_factory.cpp
+    ${LAYER2_DIR}/time_util.cpp
+    ${LAYER1_DIR}/shm/shm_display.cpp)
+target_include_directories(test_transport PRIVATE
+    ${CMAKE_SOURCE_DIR}/src ${LAYER1_DIR} ${LAYER2_DIR} ${LAYER2_DIR}/transport)
+add_test(NAME TransportTest COMMAND test_transport)

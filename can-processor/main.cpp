@@ -1,13 +1,17 @@
 
 // can-processor main.cpp
+// 双进程 can-dash 的"数据端"：从 CAN 总线（或仿真 socket）收帧，
+// 解析后写入共享内存供 can-dash 读。
+//
+// 启动参数：
+//   默认（无参数）       : sim-socket，等待 can_sim/engine.py 连接
+//   --transport=socketcan  : Linux SocketCAN（生产环境）
+//   --can-if=can0          : SocketCAN 接口名（默认 can0）
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
 #include <unistd.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <poll.h>
 
 #include "layer1/shm/shm_display.h"
 #include "layer2/can_converter.h"
@@ -15,12 +19,12 @@
 #include "layer2/indicator_runtime.h"
 #include "layer2/seat_belt_runtime.h"
 #include "layer2/time_util.h"
+#include "layer2/transport/transport_factory.h"
 #include "can_field_def.h"
 #include "alarm_rule_def.h"
 #include "indicator_def.h"
 #include "seat_belt_def.h"
 
-#define RX_BUFFER_SIZE 256
 #define TICK_PERIOD_MS 100
 
 // 内存屏障，确保共享内存写入对 reader 进程可见
@@ -193,23 +197,17 @@ static void process_can_frame(uint32_t can_id, const uint8_t* data, size_t len) 
     }
 }
 
-// ─── Unix Socket 服务器 ────────────────────────────────────
-static int setup_socket(void) {
-    const char* path = socket_get_path();
-    unlink(path);
-    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (fd < 0) return -1;
-    struct sockaddr_un addr = {};
-    addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
-    if (bind(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) { close(fd); return -1; }
-    if (listen(fd, 3) < 0) { close(fd); return -1; }
-    return fd;
-}
-
 int main(int argc, char** argv) {
-    (void)argc; (void)argv;
-    printf("[Processor] Starting...\n");
+    // 解析 CLI 参数（包含 --help 退出）
+    const candash::transport::TransportConfig cfg =
+        candash::transport::TransportFactory::parseArgs(argc, argv);
+
+    printf("[Processor] Starting with transport: ");
+    if (cfg.type == candash::transport::TransportType::kSocketCan) {
+        printf("socketcan (if=%s)\n", cfg.can_if_name);
+    } else {
+        printf("sim-socket\n");
+    }
 
     if (shm_display_create() < 0) {
         fprintf(stderr, "[Processor] shm_create failed\n"); return 1;
@@ -237,62 +235,38 @@ int main(int argc, char** argv) {
     seatBeltRuntime.init(SEAT_POSITION_TABLE, SEAT_POSITION_TABLE_COUNT,
                          &SEAT_BELT_CONFIG);
 
-    int listen_fd = setup_socket();
-    if (listen_fd < 0) { fprintf(stderr, "[Processor] socket failed\n"); return 1; }
-    printf("[Processor] Socket: %s\n", SOCKET_PATH);
+    // 创建并打开传输层
+    auto transport = candash::transport::TransportFactory::create(cfg);
+    if (!transport) {
+        fprintf(stderr, "[Processor] transport create failed\n");
+        return 1;
+    }
+    if (!transport->open()) {
+        fprintf(stderr, "[Processor] transport open failed (name=%s)\n",
+                transport->name());
+        return 1;
+    }
+    printf("[Processor] Transport: %s\n", transport->name());
 
-    uint8_t rx_buf[RX_BUFFER_SIZE];
-    int rx_len = 0;
-    int client_fd = -1;
+    uint8_t rx_data[candash::transport::kCanMaxDlc] = {};
     uint64_t last_tick_ms = 0;
-    uint64_t tick_ms = candash::now_monotonic_ms();
-
     printf("[Processor] Ready.\n");
 
+    // 主循环：读帧 + 周期 tick + 按需提交共享内存
+    // TODO(SIGINT) : 当前仅 SIGKILL 可退出，未来加信号优雅关闭
     while (1) {
-        struct pollfd pfd[2] = {};
-        pfd[0].fd = listen_fd; pfd[0].events = POLLIN;
-        if (client_fd >= 0) { pfd[1].fd = client_fd; pfd[1].events = POLLIN; }
-
-        int n = poll(pfd, client_fd >= 0 ? 2 : 1, TICK_PERIOD_MS);
-        if (n < 0) break;
-
-        if (pfd[0].revents & POLLIN) {
-            if (client_fd >= 0) close(client_fd);
-            client_fd = accept(listen_fd, NULL, NULL);
-            rx_len = 0;
-            printf("[Processor] Client connected\n");
+        uint32_t can_id = 0;
+        uint8_t dlc = 0;
+        if (transport->readFrame(can_id, dlc, rx_data, sizeof(rx_data),
+                                 TICK_PERIOD_MS)) {
+            process_can_frame(can_id, rx_data, dlc);
         }
 
-        if (client_fd >= 0 && pfd[1].revents & POLLIN) {
-            uint8_t buf[64];
-            int r = read(client_fd, buf, sizeof(buf));
-            if (r <= 0) { close(client_fd); client_fd = -1; rx_len = 0; continue; }
-
-            for (int i = 0; i < r; i++) {
-                if (rx_len < RX_BUFFER_SIZE) rx_buf[rx_len++] = buf[i];
-                if (rx_len >= 5) {
-                    uint8_t dlc = rx_buf[4];
-                    int frame_len = 5 + dlc;
-                    if (rx_len >= frame_len) {
-                        uint32_t can_id = rx_buf[0]
-                                        | ((uint32_t)rx_buf[1] << 8)
-                                        | ((uint32_t)rx_buf[2] << 16)
-                                        | ((uint32_t)rx_buf[3] << 24);
-                        process_can_frame(can_id, &rx_buf[5], dlc);
-                        rx_len -= frame_len;
-                        if (rx_len > 0)
-                            memmove(rx_buf, &rx_buf[frame_len], rx_len);
-                    }
-                }
-            }
-        }
-
-        tick_ms = candash::now_monotonic_ms();
+        uint64_t tick_ms = candash::now_monotonic_ms();
         if (tick_ms - last_tick_ms >= TICK_PERIOD_MS) {
             alarmRuntime.tick(tick_ms);
             indRuntime.tick(tick_ms);
-            if (client_fd >= 0) {
+            if (transport->isReady()) {
                 SHM_BARRIER();
                 shm_display_commit();
             }
@@ -300,8 +274,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    if (client_fd >= 0) close(client_fd);
-    close(listen_fd);
+    transport->close();
     shm_display_close();
     printf("[Processor] Exiting.\n");
     return 0;

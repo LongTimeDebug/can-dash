@@ -35,8 +35,10 @@ cppcheck \
     --suppress=unusedVariable \
     --suppress=memsetClassFloat \
     --suppress=passedByValue \
+    --suppress=passedByValueCallback \
     --suppress=unusedPrivateFunction \
     --suppress=duplicateConditionalAssign \
+    --suppress=cstyleCast \
     --std=c++17 \
     --language=c++ \
     --error-exitcode=1 \

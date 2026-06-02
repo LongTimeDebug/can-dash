@@ -240,6 +240,11 @@ uint32_t shm_display_frame_seq(void) {
     return g_ptr->frame_seq;
 }
 
+// ─── 公开：算 checksum（测试用）────────────────────────
+uint32_t shm_display_compute_checksum(const DisplayDataShm* d) {
+    return compute_checksum(d);
+}
+
 // ─── 关闭 ──────────────────────────────────────────────
 void shm_display_close(void) {
     if (g_ptr && g_ptr != (void*)MAP_FAILED) munmap(g_ptr, sizeof(DisplayDataShm));

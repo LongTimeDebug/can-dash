@@ -162,6 +162,9 @@ int      shm_display_health_check(void);              // 0=OK, -1=未连接, -2=
 uint64_t shm_display_age_ms(uint64_t now_ms);         // 距上次 commit 的毫秒数，UINT64_MAX=未连接
 uint32_t shm_display_frame_seq(void);                // 当前帧序号（dash 用，可用于检测丢帧）
 
+// 工具（测试用）：手动算 checksum（shm_display_commit 已自动算）
+uint32_t shm_display_compute_checksum(const DisplayDataShm* d);
+
 #ifdef __cplusplus
 }
 #endif

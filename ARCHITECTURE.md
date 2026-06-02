@@ -61,6 +61,63 @@ python can_sim/engine.py &
 
 ---
 
+## PR5: Layer 3 抽象层（DataSource + Binder 解耦）
+
+### 动机
+之前 `DashboardBackend` 一锅端：
+- 读 shm（数据接收）
+- 业务转换（安全带/报警/i18n）
+- 暴露 Q_PROPERTY（UI 绑定）
+
+换 Kanzi 时 Q_PROPERTY 全要扔掉重写，违背"接口稳定、实现可换"原则。
+
+### 抽象设计
+
+```
+                    IDataSource              IDataBinder
+                  (收数据, 不知道有 UI)    (绑UI, 不知道数据从哪来)
+                        │                       ▲
+                        ▼                       │
+                  ShmDataSource          QtDataBinder   KanziDataBinder
+                  (C++ 读 shm)          (Q_PROPERTY)   (kanzi::Property)
+                        │                       │              │
+                        └───── DashboardBackend (胶水) ────────┘
+                            （Qt 版 / Kanzi 版，组合方式不同）
+```
+
+**核心原则**：
+- `IDataSource` 纯虚接口（不依赖 Qt 头）
+- `IDataBinder` 纯虚接口
+- `DashboardBackend` 胶水（Qt 版），未来 `KanziBackend` 换 Binder 实现
+- 业务结构 `DisplaySnapshot`（28 字段 + 元数据 + 报警/安全带/指示灯）一处定义、两端共用
+
+### 文件清单（新增）
+- `src/layer3/idata_source.h` — IDataSource 接口
+- `src/layer3/idata_binder.h` — IDataBinder 接口
+- `src/layer3/display_data_types.h` — 跨 UI 框架的数据类型
+- `src/layer3/shm_data_source.h/cpp` — IDataSource 的 shm 实现
+- `src/layer3/qt_data_binder.h/cpp` — IDataBinder 的 Qt/QML 实现
+- `src/layer3/dashboard_backend.h/cpp` — 胶水（替代旧的 dashboard_backend_qt）
+- `tests/mock_data_source.h` + `mock_data_binder.h` — 测试 mock
+
+### 测试覆盖（新增 3 个）
+- `test_shm_data_source` 25/25（业务转换 + 健康检查 + 丢帧检测 + 指示灯）
+- `test_qt_data_binder` 33/33（Q_PROPERTY 映射 + 报警列表 + 安全带警告）
+- `test_dashboard_backend` 12/12（胶水层转发 + 注入 mock + QML 透传）
+
+### 换 Kanzi 时的最小改动
+1. 写 `KanziDataSource : public IDataSource`（如需 Kanzi 自己的事件循环）
+2. 写 `KanziDataBinder : public IDataBinder, public kanzi::Node`
+3. 写 `KanziBackend`（参照 DashboardBackend 但 m_binder 是 Kanzi 派生）
+4. `ShmDataSource` **完全复用**（业务逻辑与 UI 无关）
+
+### 关键不变量
+- `DisplaySnapshot` 结构**不**含任何 Qt/Kanzi 类型
+- `IDataSource` / `IDataBinder` 接口**不**含任何 Qt 头
+- 业务转换在 DataSource 端（业务感强），UI 映射在 Binder 端（UI 感强）
+
+---
+
 ## 架构分层（can-dash 进程内）
 
 ```

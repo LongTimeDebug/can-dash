@@ -7,7 +7,7 @@
 #include <QtGlobal>
 #include <QDebug>
 
-#include "layer3/dashboard_backend_qt.h"
+#include "layer3/dashboard_backend.h"
 
 int main(int argc, char* argv[]) {
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);

@@ -1,0 +1,219 @@
+// shm_data_source.cpp
+// ShmDataSource 实现：从共享内存读 v1.2 协议，转 DisplaySnapshot 推送
+
+#include "shm_data_source.h"
+#include "layer1/shm/shm_display.h"
+#include "layer2/time_util.h"
+
+#include <QDebug>
+#include <cstring>
+#include <cmath>
+
+// 指示灯 ID 顺序（来自 shm_display.h 的 ShmIndicatorId enum）
+// IND_LEFT_TURN=0, IND_RIGHT_TURN=1, IND_PARK_BRAKE=2,
+// IND_READY_GO=3, IND_BAT_WARN=4, IND_ENGINE=5,
+// IND_HIGH_VOLT=6, IND_FOG_LIGHT=7, IND_SEATBELT=8, IND_TIRE_PRESSURE=9, IND_COUNT=10
+// （无需重新定义，直接用）
+
+// 座位顺序
+enum SeatId {
+    SEAT_DRIVER = 0,
+    SEAT_PASSENGER,
+    SEAT_REAR_LEFT,
+    SEAT_REAR_CENTER,
+    SEAT_REAR_RIGHT
+};
+
+ShmDataSource::ShmDataSource(QObject* parent) : QObject(parent) {}
+
+ShmDataSource::~ShmDataSource() {
+    stop();
+}
+
+bool ShmDataSource::start() {
+    if (m_running) return true;
+
+    // 打开共享内存
+    if (shm_display_open() < 0) {
+        qWarning() << "[ShmDataSource] Failed to open shm at" << SHM_DISPLAY_PATH;
+        m_snapshot.health = HEALTH_DISCONNECTED;
+        if (m_healthCb) m_healthCb(HEALTH_DISCONNECTED);
+    } else {
+        qDebug() << "[ShmDataSource] Opened shm at" << SHM_DISPLAY_PATH;
+    }
+
+    // 启动 16ms 定时器
+    m_timer = new QTimer(this);
+    connect(m_timer, &QTimer::timeout, this, &ShmDataSource::onTick);
+    m_timer->start(m_tickIntervalMs);
+
+    m_running = true;
+    return true;
+}
+
+void ShmDataSource::stop() {
+    if (!m_running) return;
+    if (m_timer) {
+        m_timer->stop();
+        m_timer->deleteLater();
+        m_timer = nullptr;
+    }
+    shm_display_close();
+    m_running = false;
+}
+
+void ShmDataSource::onTick() {
+    const uint64_t now = candash::now_monotonic_ms();
+
+    // ─── 1. 健康检查 ───
+    int health = shm_display_health_check();
+    HealthStatus new_health;
+    if (health != 0) {
+        new_health = HEALTH_DISCONNECTED;
+    } else {
+        const uint64_t age = shm_display_age_ms(now);
+        if (age == UINT64_MAX) {
+            new_health = HEALTH_WAITING;
+        } else if (age > SHM_HEARTBEAT_TIMEOUT_MS) {
+            new_health = HEALTH_STALE;
+        } else {
+            new_health = HEALTH_OK;
+        }
+    }
+
+    // 健康状态变化时推送
+    if (new_health != m_lastHealth) {
+        m_snapshot.health = new_health;
+        m_lastHealth = new_health;
+        if (m_healthCb) m_healthCb(new_health);
+    }
+
+    // 离线时不推送数据快照（防 stale UI）
+    if (new_health != HEALTH_OK) {
+        return;
+    }
+
+    // ─── 2. 轮询新帧 ───
+    uint64_t ts = shm_display_poll(m_lastCommitTs);
+    if (ts == m_lastCommitTs) {
+        return;  // 无新帧
+    }
+    m_lastCommitTs = ts;
+
+    // ─── 3. 读取数据 ───
+    DisplayDataShm shm = {};
+    int rc = shm_display_read(&shm, nullptr);
+    if (rc < 0) {
+        static int last_err = 0;
+        if (rc != last_err) {
+            qWarning() << "[ShmDataSource] shm_display_read failed:" << rc
+                       << "(-2=ABI, -3=checksum)";
+            last_err = rc;
+        }
+        return;
+    }
+
+    // ─── 4. 业务转换：ShmDisplayData → DisplaySnapshot ───
+    DisplaySnapshot next;
+    convertSnapshot(shm, next);
+
+    // FPS 窗口
+    if (m_fpsWindowStart == 0) m_fpsWindowStart = now;
+    m_fpsCountInWindow++;
+    if (now - m_fpsWindowStart >= 1000) {
+        m_fps = static_cast<double>(m_fpsCountInWindow) * 1000.0
+                / static_cast<double>(now - m_fpsWindowStart);
+        m_fpsWindowStart = now;
+        m_fpsCountInWindow = 0;
+    }
+
+    // 丢帧检测
+    if (m_lastFrameSeq > 0 && shm.frame_seq > m_lastFrameSeq + 1) {
+        m_droppedFrames += (shm.frame_seq - m_lastFrameSeq - 1);
+    }
+    m_lastFrameSeq = shm.frame_seq;
+    next.meta.dropped_frames = m_droppedFrames;
+
+    // ─── 5. 推送快照 ───
+    m_snapshot = next;
+    if (m_updateCb) m_updateCb(m_snapshot);
+}
+
+void ShmDataSource::convertSnapshot(const DisplayDataShm& shm, DisplaySnapshot& out) const {
+    // ─── 28 业务字段：手动逐字段 copy（DisplayData 与 DisplayDataShm 字段顺序/类型不一致）───
+    out.data.bat_volt       = shm.bat_volt;
+    out.data.bat_curr       = shm.bat_curr;
+    out.data.bat_soc        = shm.bat_soc;
+    out.data.battery_temp   = shm.battery_temp;
+    out.data.vehicle_speed  = shm.vehicle_speed;
+    out.data.brake          = shm.brake;
+    out.data.motor_rpm      = static_cast<int16_t>(shm.motor_rpm);
+    out.data.motor_temp     = shm.motor_temp;
+    out.data.driver_occupied   = shm.driver_occupied;
+    out.data.passenger_occupied = shm.passenger_occupied;
+    out.data.driver_buckled     = shm.driver_buckled;
+    out.data.passenger_buckled  = shm.passenger_buckled;
+    out.data.rear_buckle        = shm.rear_buckle;
+    out.data.engine_rpm         = shm.engine_rpm;
+    // engine_fault / charge_fault 不在 shm 协议中 → 保持 0
+    out.data.charge_status      = shm.charge_status;
+    out.data.charge_power       = shm.charge_power;
+    out.data.energy_mode        = shm.energy_mode;
+    out.data.ev_range           = shm.ev_range;
+    out.data.fuel_level         = shm.fuel_level;
+    out.data.fuel_range         = shm.fuel_range;
+    out.data.gear_status        = shm.gear_status;
+    // tire_pressure_* 不在 shm 协议中（PR1 加到 DisplayData）→ 保持 0
+    // charge_fault 同上
+
+    // 帧元数据
+    out.meta.timestamp_ms = shm.last_commit_ms;
+    out.meta.frame_seq = shm.frame_seq;
+    out.meta.updated_mask = shm.updated_mask;
+    out.meta.dropped_frames = 0;  // 由调用方填
+
+    // 健康（已是 HEALTH_OK，调用方已过滤）
+    out.health = HEALTH_OK;
+
+    // 报警（从 shm.alarm_active + alarm_message_zh 解析）
+    out.alarm_count = 0;
+    if (shm.alarm_active != 0) {
+        // 简化：单条报警（shm 当前只传 1 条）
+        AlarmEvent& evt = out.alarms[0];
+        std::strncpy(evt.name, "active_alarm", sizeof(evt.name) - 1);
+        std::strncpy(evt.text_zh, shm.alarm_message_zh, sizeof(evt.text_zh) - 1);
+        std::strncpy(evt.text_en, shm.alarm_message_zh, sizeof(evt.text_en) - 1);  // 无 EN fallback
+        evt.priority = 0;
+        evt.color_r = 0xFF; evt.color_g = 0x44; evt.color_b = 0x00;  // 默认橙红
+        out.alarm_count = 1;
+    }
+
+    // 安全带状态
+    auto setSeat = [&](int idx, bool occupied, bool buckled) {
+        out.seat_belt.seats[idx].occupied = occupied;
+        out.seat_belt.seats[idx].buckled = buckled;
+        out.seat_belt.seats[idx].warning = (occupied && !buckled && shm.vehicle_speed > 5.0f);
+    };
+    setSeat(SEAT_DRIVER, shm.driver_occupied != 0, shm.driver_buckled != 0);
+    setSeat(SEAT_PASSENGER, shm.passenger_occupied != 0, shm.passenger_buckled != 0);
+    setSeat(SEAT_REAR_LEFT,   (shm.rear_buckle & 0x01) != 0, (shm.rear_buckle & 0x01) != 0);
+    setSeat(SEAT_REAR_CENTER, (shm.rear_buckle & 0x02) != 0, (shm.rear_buckle & 0x02) != 0);
+    setSeat(SEAT_REAR_RIGHT,  (shm.rear_buckle & 0x04) != 0, (shm.rear_buckle & 0x04) != 0);
+    out.seat_belt.warning_active = false;
+    for (int i = 0; i < SEAT_COUNT; i++) {
+        if (out.seat_belt.seats[i].warning) {
+            out.seat_belt.warning_active = true;
+            break;
+        }
+    }
+
+    // 指示灯（shm 提供 10 个 IND_* 枚举 + 2 个 padding slot）
+    for (int i = 0; i < DISPLAY_INDICATOR_COUNT && i < IND_COUNT; i++) {
+        out.indicators.lights[i].on = (shm.indicators[i].on != 0);
+        out.indicators.lights[i].flash = (shm.indicators[i].flash != 0);
+        out.indicators.lights[i].hz = shm.indicators[i].hz_x10 / 10.0f;
+    }
+
+    // is_moving
+    out.is_moving = (shm.vehicle_speed > 1.0f);
+}

@@ -1,0 +1,97 @@
+// dashboard_backend.h
+// DashboardBackend 胶水层：组合 IDataSource + IDataBinder
+//
+// 这是 Qt 版的胶水，未来 Kanzi 版只需替换 QtDataBinder → KanziDataBinder
+// 业务侧（DataSource）和 UI 侧（Binder）完全解耦
+//
+// 使用方式：
+//   DashboardBackend backend;
+//   backend.init();           // 默认 ShmDataSource + QtDataBinder
+//   // QML 端：context->setContextProperty("dashboard", &backend);
+
+#pragma once
+
+#include <QObject>
+#include <QTimer>
+#include <QVariant>
+#include <QVariantMap>
+#include <QVariantList>
+#include <QString>
+#include <memory>
+
+class IDataSource;
+class IDataBinder;
+
+class DashboardBackend : public QObject {
+    Q_OBJECT
+    // 透传 QtDataBinder 的 Q_PROPERTY 给 QML
+    Q_PROPERTY(QVariantMap displayData READ displayData NOTIFY displayDataChanged)
+    Q_PROPERTY(QVariantMap indicatorStates READ indicatorStates NOTIFY indicatorStatesChanged)
+    Q_PROPERTY(bool alarmActive READ alarmActive NOTIFY alarmActiveChanged)
+    Q_PROPERTY(QString alarmMessageZh READ alarmMessageZh NOTIFY alarmActiveChanged)
+    Q_PROPERTY(QVariantList alarmList READ alarmList NOTIFY alarmActiveChanged)
+    Q_PROPERTY(bool seatBeltWarningActive READ seatBeltWarningActive NOTIFY seatBeltChanged)
+    Q_PROPERTY(QString seatBeltMessage READ seatBeltMessage NOTIFY seatBeltChanged)
+    Q_PROPERTY(QVariantList seatIconStates READ seatIconStates NOTIFY seatBeltChanged)
+    Q_PROPERTY(bool isMoving READ isMoving NOTIFY movingChanged)
+    Q_PROPERTY(bool processorOnline READ processorOnline NOTIFY healthChanged)
+    Q_PROPERTY(QString processorStatus READ processorStatus NOTIFY healthChanged)
+    Q_PROPERTY(qulonglong dataAgeMs READ dataAgeMs NOTIFY dataHealthChanged)
+    Q_PROPERTY(qulonglong frameSeq READ frameSeq NOTIFY dataHealthChanged)
+    Q_PROPERTY(double dataFps READ dataFps NOTIFY dataHealthChanged)
+    Q_PROPERTY(qulonglong droppedFrames READ droppedFrames NOTIFY dataHealthChanged)
+    Q_PROPERTY(QVariantMap fieldValidity READ fieldValidity NOTIFY dataHealthChanged)
+
+public:
+    explicit DashboardBackend(QObject* parent = nullptr);
+    ~DashboardBackend() override;
+
+    // 初始化（默认 ShmDataSource + QtDataBinder）
+    void init();
+
+    // 注入自定义 DataSource / Binder（用于测试或换 Kanzi）
+    void setDataSource(std::unique_ptr<IDataSource> source);
+    void setDataBinder(std::unique_ptr<IDataBinder> binder);
+
+    // ─── 透传给 QtDataBinder（QML 可见接口）───
+    QVariantMap displayData() const;
+    QVariantMap indicatorStates() const;
+    bool alarmActive() const;
+    QString alarmMessageZh() const;
+    QVariantList alarmList() const;
+    bool seatBeltWarningActive() const;
+    QString seatBeltMessage() const;
+    QVariantList seatIconStates() const;
+    bool isMoving() const;
+    bool processorOnline() const;
+    QString processorStatus() const;
+    qulonglong dataAgeMs() const;
+    qulonglong frameSeq() const;
+    double dataFps() const;
+    qulonglong droppedFrames() const;
+    QVariantMap fieldValidity() const;
+
+    Q_INVOKABLE QVariant get(const QString& key) const;
+    Q_INVOKABLE void set(const QString& key, const QVariant& value);
+    Q_INVOKABLE bool indicatorOn(const QString& key) const;
+    Q_INVOKABLE void setIndicator(const QString& widget_id, bool on, bool flash, float hz);
+    Q_INVOKABLE QString tr(const QString& key) const;
+    Q_INVOKABLE void setLanguage(const QString& lang);
+
+signals:
+    void displayDataChanged();
+    void indicatorStatesChanged();
+    void alarmActiveChanged();
+    void seatBeltChanged();
+    void movingChanged();
+    void healthChanged();
+    void dataHealthChanged();
+    void languageChanged();
+
+private:
+    std::unique_ptr<IDataSource> m_source;
+    std::unique_ptr<IDataBinder> m_binder;
+
+    // 拿到 QtDataBinder 的具体指针（用于 Q_PROPERTY 透传）
+    class QtDataBinder* m_qtBinder = nullptr;
+};

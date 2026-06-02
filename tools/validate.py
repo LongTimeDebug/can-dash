@@ -299,6 +299,84 @@ def validate_cross_references(result: ValidationResult):
         )
 
 
+def validate_display_key_three_way(result: ValidationResult):
+    """display_key 三处一致性校验：can_ids.yaml ↔ dashboard_backend_qt.cpp ↔ QML"""
+    # 1. 收集 can_ids.yaml 定义的 display_key 列表
+    can_data = load_yaml("can_ids.yaml")
+    defined_keys = set()
+    for src in can_data.get("can_sources", []):
+        for f in src.get("fields", []):
+            defined_keys.add(f["name"])
+
+    # 2. 收集 C++ (dashboard_backend_qt.cpp) 中 Q_PROPERTY 引用的 key
+    project_root = Path(__file__).parent.parent
+    backend_cpp = project_root / "src" / "layer3" / "dashboard_backend_qt.cpp"
+    cpp_keys = set()
+    if backend_cpp.exists():
+        content = backend_cpp.read_text(encoding="utf-8")
+        # 匹配 Q_PROPERTY 声明中的属性名 + READ getter 模式
+        for m in re.finditer(r"Q_PROPERTY\s+\w+\s+(\w+)\s+READ", content):
+            cpp_keys.add(m.group(1))
+
+    # 3. 收集 QML 中 Connections / property 引用
+    qml_dir = project_root / "src" / "ui"
+    qml_keys = set()
+    if qml_dir.exists():
+        for qml_file in qml_dir.glob("*.qml"):
+            content = qml_file.read_text(encoding="utf-8")
+            # 匹配 property real xxx / property bool xxx / property int xxx
+            for m in re.finditer(r"property\s+(?:real|int|bool|string)\s+(\w+)", content):
+                qml_keys.add(m.group(1))
+            # 匹配 Connections { target: backend; function onXxxChanged() {...} } 模式
+            for m in re.finditer(r"function\s+on(\w+)Changed\s*\(", content):
+                qml_keys.add(m.group(1))
+
+    # 4. 报告：can_ids 定义但 C++ 缺失的 key
+    if backend_cpp.exists():
+        missing_in_cpp = defined_keys - cpp_keys
+        for k in sorted(missing_in_cpp):
+            result.add_warning(
+                f"display_key '{k}' 在 can_ids.yaml 中定义，但 dashboard_backend_qt.cpp 未暴露为 Q_PROPERTY"
+            )
+
+    # 5. 报告：C++ 有 Q_PROPERTY 但 can_ids 未定义
+    if backend_cpp.exists():
+        extra_in_cpp = cpp_keys - defined_keys
+        for k in sorted(extra_in_cpp):
+            result.add_error(
+                "dashboard_backend_qt.cpp",
+                f"Q_PROPERTY '{k}'",
+                f"Q_PROPERTY '{k}' 在 dashboard_backend_qt.cpp 中声明但 can_ids.yaml 未定义",
+                f"在 can_ids.yaml 的对应 can_source.fields 中添加 name: '{k}'"
+            )
+
+    # 6. 报告：QML 引用但 can_ids 未定义
+    # 注：QML 属性常为 camelCase（vehicleSpeed），can_ids 多为 snake_case（vehicle_speed），
+    #     二者通过 C++ Q_PROPERTY 桥接。因此这里只做 WARNING（不阻断），
+    #     真正的一致性由 C++ ↔ YAML 这一层把关。
+    if qml_dir.exists():
+        # 构造 snake_case 集合用于模糊匹配
+        camel_to_snake = {k: re.sub(r"(?<!^)(?=[A-Z])", "_", k).lower() for k in qml_keys}
+        defined_snake = {k.lower() for k in defined_keys}
+        for k in sorted(qml_keys):
+            # 排除 QML 内置属性
+            if k in ("color", "text", "width", "height", "x", "y", "z", "opacity",
+                     "visible", "enabled", "anchors", "source", "radius", "border",
+                     "running", "value", "from", "to", "duration", "easing",
+                     "horizontalAlignment", "verticalAlignment", "wrapMode",
+                     "elide", "font", "smooth", "antialiasing", "transform"):
+                continue
+            # 模糊匹配：camelCase → snake_case
+            snake = camel_to_snake.get(k, k)
+            if snake.lower() not in defined_snake:
+                result.add_warning(
+                    f"QML property/onXxxChanged '{k}'（→ snake_case: '{snake}'）"
+                    f" 不在 can_ids.yaml 中。请确认："
+                    f"(1) C++ Q_PROPERTY '{snake}' 是否已声明；"
+                    f"(2) can_ids.yaml 是否缺该字段"
+                )
+
+
 def validate_all() -> ValidationResult:
     result = ValidationResult()
     validate_alarm_rules(result)
@@ -307,6 +385,7 @@ def validate_all() -> ValidationResult:
     validate_indicators(result)
     validate_display_layout(result)
     validate_cross_references(result)
+    validate_display_key_three_way(result)
     return result
 
 

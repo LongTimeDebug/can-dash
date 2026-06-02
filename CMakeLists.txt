@@ -140,6 +140,14 @@ target_include_directories(test_alarm_runtime PRIVATE
 add_dependencies(test_alarm_runtime run_yaml_to_c)
 add_test(NAME AlarmRuntimeTest COMMAND test_alarm_runtime)
 
+add_executable(test_self_test_runtime tests/test_self_test_runtime.cpp
+    ${LAYER2_TEST_SOURCES} ${GENERATED_SOURCES}
+    ${LAYER2_DIR}/self_test_runtime.cpp)
+target_include_directories(test_self_test_runtime PRIVATE
+    ${CMAKE_SOURCE_DIR}/src ${GENERATED_DIR} ${LAYER1_DIR} ${LAYER2_DIR})
+add_dependencies(test_self_test_runtime run_yaml_to_c)
+add_test(NAME SelfTestRuntimeTest COMMAND test_self_test_runtime)
+
 add_executable(test_seat_belt_runtime tests/test_seat_belt_runtime.cpp
     ${LAYER2_TEST_SOURCES} ${GENERATED_SOURCES})
 target_include_directories(test_seat_belt_runtime PRIVATE

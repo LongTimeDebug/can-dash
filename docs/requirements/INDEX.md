@@ -6,13 +6,13 @@
 
 | 类别 | 总数 | Approved | Implemented | Verified |
 |------|------|----------|-------------|----------|
-| ALM (报警) | 11 | 11 | 0 | 0 |
-| HYBRID (混动特有) | 6 | 1 | 0 | 0 |
+| ALM (报警) | 11 | 10 | 0 | 1 |
+| HYBRID (混动特有) | 6 | 0 | 0 | 1 |
 | IND (指示灯) | 12 | 12 | 0 | 0 |
-| SIG (CAN信号) | 19 | 19 | 0 | 0 |
+| SIG (CAN信号) | 19 | 18 | 0 | 1 |
 | UI (界面) | 5 | 5 | 0 | 0 |
-| SYS (系统) | 5 | 5 | 0 | 0 |
-| **合计** | **58** | **53** | **0** | **0** |
+| SYS (系统) | 5 | 4 | 0 | 0 |
+| **合计** | **58** | **51** | **0** | **3** |
 
 ---
 
@@ -26,7 +26,7 @@
 | REQ-ALM-002 | 电池欠压报警 | Safety | High | Approved | - |
 | REQ-ALM-003 | 电量低报警 (SOC<10%) | Safety | Medium | Approved | - |
 | REQ-ALM-004 | 电机温度过高报警 | Safety | High | Approved | - |
-| REQ-ALM-005 | 胎压低报警 | Safety, Functional | Critical | Proposed | - |
+| REQ-ALM-005 | 胎压低报警 | Safety, Functional | Critical | Implemented | - |
 | REQ-ALM-006 | 充电中禁止行驶报警 | Safety | High | Approved | - |
 | REQ-ALM-007 | 电机超速报警 | Safety | High | Approved | - |
 | REQ-ALM-008 | 电池高温报警 | Safety | High | Approved | - |
@@ -38,7 +38,7 @@
 
 | ID | 标题 | 类型 | 优先级 | 状态 | 实现版本 |
 |----|------|------|--------|------|---------|
-| REQ-HYBRID-001 | 混动汽车仪表盘特有功能需求基线 | Functional, Safety | High | Proposed | - |
+| REQ-HYBRID-001 | 混动汽车仪表盘特有功能需求基线 | Functional, Safety | High | Implemented | - |
 | REQ-HYBRID-002 | 充电状态显示 | Functional | Medium | Approved | - |
 | REQ-HYBRID-003 | 能量流动图 | Functional | Medium | Approved | - |
 | REQ-HYBRID-004 | 续航里程预测 | Functional | High | Approved | - |
@@ -104,7 +104,7 @@
 | REQ-SYS-002 | CAN信号平滑与范围检查 | Reliability | High | Approved | - |
 | REQ-SYS-003 | LCD背光超时逻辑 | Functional | Low | Approved | - |
 | REQ-SYS-004 | 安全带状态运行时监控 | Safety | High | Approved | - |
-| REQ-SYS-005 | 仪表黑屏/白屏自检 | Safety | High | Proposed | - |
+| REQ-SYS-005 | 仪表黑屏/白屏自检 | Safety | High | Approved | - |
 
 ---
 

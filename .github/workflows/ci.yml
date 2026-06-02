@@ -70,7 +70,7 @@ jobs:
             test_can_converter test_alarm_runtime test_seat_belt_runtime \
             test_event_bus test_vehicle_logic test_indicator_runtime \
             test_can_signal_monitor test_shm_display test_time_util \
-            test_transport \
+            test_transport test_self_test_runtime \
             --parallel -j$(nproc)
       - name: Run tests
         run: |

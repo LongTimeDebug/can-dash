@@ -43,6 +43,16 @@ jobs:
       - name: Validate config
         run: python3 tools/validate.py
 
+  validate-dbc:
+    name: Validate DBC ↔ YAML
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: pip3 install --quiet pyyaml cantools
+      - name: Run DBC unit tests
+        run: python3 tests/test_dbc_to_yaml.py
+
   ut:
     name: Unit tests (no Qt)
     runs-on: ubuntu-24.04

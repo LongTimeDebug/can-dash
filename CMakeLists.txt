@@ -48,8 +48,8 @@ if(CMAKE_CROSSCOMPILING)
     message(STATUS "Cross-compiling for: ${CMAKE_SYSTEM_NAME} ${CMAKE_SYSTEM_PROCESSOR}")
 endif()
 
-# Qt6 — Svg/Qml/Quick 是 optional（can-dash UI binary 才需要），Core 必需（Layer 3 测试用）
-find_package(Qt6 COMPONENTS Core)
+# Qt6 — 完全 optional（不装 Qt 也能跑核心 Layer 1/2 测试；装 Qt 才编 UI 二进制 + Layer 3 测试）
+find_package(Qt6 QUIET COMPONENTS Core)
 if(Qt6_FOUND)
     find_package(Qt6 QUIET COMPONENTS Qml Quick Svg)
 endif()
@@ -214,34 +214,37 @@ target_include_directories(test_transport PRIVATE
 add_test(NAME TransportTest COMMAND test_transport)
 
 # ─── PR5: Layer 3 抽象层测试（ShmDataSource + QtDataBinder + DashboardBackend 胶水）───
-# ShmDataSource（Qt + Layer 1 shm）
-add_executable(test_shm_data_source tests/test_shm_data_source.cpp
-    ${LAYER3_DIR}/shm_data_source.cpp
-    ${LAYER1_DIR}/shm/shm_display.cpp
-    ${LAYER2_DIR}/time_util.cpp)
-target_include_directories(test_shm_data_source PRIVATE
-    ${CMAKE_SOURCE_DIR}/src ${LAYER1_DIR} ${LAYER2_DIR} ${LAYER3_DIR})
-target_link_libraries(test_shm_data_source PRIVATE Qt6::Core)
-add_test(NAME ShmDataSourceTest COMMAND test_shm_data_source)
+# 仅在 Qt6 可用时编译（依赖 QtCore）
+if(Qt6_FOUND)
+    # ShmDataSource（Qt + Layer 1 shm）
+    add_executable(test_shm_data_source tests/test_shm_data_source.cpp
+        ${LAYER3_DIR}/shm_data_source.cpp
+        ${LAYER1_DIR}/shm/shm_display.cpp
+        ${LAYER2_DIR}/time_util.cpp)
+    target_include_directories(test_shm_data_source PRIVATE
+        ${CMAKE_SOURCE_DIR}/src ${LAYER1_DIR} ${LAYER2_DIR} ${LAYER3_DIR})
+    target_link_libraries(test_shm_data_source PRIVATE Qt6::Core)
+    add_test(NAME ShmDataSourceTest COMMAND test_shm_data_source)
 
-# QtDataBinder（Qt + Layer 2 language）
-add_executable(test_qt_data_binder tests/test_qt_data_binder.cpp
-    ${LAYER3_DIR}/qt_data_binder.cpp
-    ${LAYER2_DIR}/language_manager.cpp)
-target_include_directories(test_qt_data_binder PRIVATE
-    ${CMAKE_SOURCE_DIR}/src ${LAYER1_DIR} ${LAYER2_DIR} ${LAYER3_DIR})
-target_link_libraries(test_qt_data_binder PRIVATE Qt6::Core)
-add_test(NAME QtDataBinderTest COMMAND test_qt_data_binder)
+    # QtDataBinder（Qt + Layer 2 language）
+    add_executable(test_qt_data_binder tests/test_qt_data_binder.cpp
+        ${LAYER3_DIR}/qt_data_binder.cpp
+        ${LAYER2_DIR}/language_manager.cpp)
+    target_include_directories(test_qt_data_binder PRIVATE
+        ${CMAKE_SOURCE_DIR}/src ${LAYER1_DIR} ${LAYER2_DIR} ${LAYER3_DIR})
+    target_link_libraries(test_qt_data_binder PRIVATE Qt6::Core)
+    add_test(NAME QtDataBinderTest COMMAND test_qt_data_binder)
 
-# DashboardBackend 胶水（Qt + Layer 1 shm + Layer 2 language + 所有 Layer 3）
-add_executable(test_dashboard_backend tests/test_dashboard_backend.cpp
-    ${LAYER3_DIR}/dashboard_backend.cpp
-    ${LAYER3_DIR}/shm_data_source.cpp
-    ${LAYER3_DIR}/qt_data_binder.cpp
-    ${LAYER1_DIR}/shm/shm_display.cpp
-    ${LAYER2_DIR}/time_util.cpp
-    ${LAYER2_DIR}/language_manager.cpp)
-target_include_directories(test_dashboard_backend PRIVATE
-    ${CMAKE_SOURCE_DIR}/src ${LAYER1_DIR} ${LAYER2_DIR} ${LAYER3_DIR})
-target_link_libraries(test_dashboard_backend PRIVATE Qt6::Core)
-add_test(NAME DashboardBackendTest COMMAND test_dashboard_backend)
+    # DashboardBackend 胶水（Qt + Layer 1 shm + Layer 2 language + 所有 Layer 3）
+    add_executable(test_dashboard_backend tests/test_dashboard_backend.cpp
+        ${LAYER3_DIR}/dashboard_backend.cpp
+        ${LAYER3_DIR}/shm_data_source.cpp
+        ${LAYER3_DIR}/qt_data_binder.cpp
+        ${LAYER1_DIR}/shm/shm_display.cpp
+        ${LAYER2_DIR}/time_util.cpp
+        ${LAYER2_DIR}/language_manager.cpp)
+    target_include_directories(test_dashboard_backend PRIVATE
+        ${CMAKE_SOURCE_DIR}/src ${LAYER1_DIR} ${LAYER2_DIR} ${LAYER3_DIR})
+    target_link_libraries(test_dashboard_backend PRIVATE Qt6::Core)
+    add_test(NAME DashboardBackendTest COMMAND test_dashboard_backend)
+endif()

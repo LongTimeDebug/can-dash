@@ -148,10 +148,16 @@ int main(int argc, char** argv) {
         src.setHealthCallback([&](HealthStatus h) { binder.onHealthChanged(h); });
         src.start();
 
-        src.tickForTest();  // 离线
-        size_t c1 = binder.snapshotCount();
+        // 触发多次离线 tick（任何一次都不应增加 snapshot 计数）
+        for (int i = 0; i < 5; i++) {
+            src.tickForTest();
+        }
+        // cppcheck-suppress unreadVariable
+        const size_t count_before = binder.snapshotCount();
         src.tickForTest();
-        TEST_ASSERT(binder.snapshotCount() == c1, "连续离线不增加 snapshot 计数");
+        src.tickForTest();
+        // cppcheck-suppress duplicateExpression
+        TEST_ASSERT(binder.snapshotCount() - count_before == 0, "连续离线不增加 snapshot 计数");
         src.stop();
     }
 

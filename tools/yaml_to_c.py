@@ -179,23 +179,47 @@ extern const int ALARM_RULE_TABLE_COUNT;
 
 extern const AlarmActionDef ALARM_ACTION_TABLE[];
 extern const int ALARM_ACTION_TABLE_COUNT;
+
+// display_key 全局字符串表（由 yaml_to_c.py 从 can_ids.yaml + alarm_rules.yaml
+// 聚合生成，所有规则的 display_key_index 都引用此表）。
+// 用途：AlarmRuntime::onValueChanged() 用 strcmp 过滤，避免每个 value 变化
+// 都遍历所有规则。
+extern const char* const DISPLAY_KEY_TABLE[];
+extern const int DISPLAY_KEY_TABLE_COUNT;
 """
 
 
-def gen_alarm_rule_table_c(alarm_data: Dict) -> str:
-    """生成 alarm_rule_table.c"""
+def gen_alarm_rule_table_c(alarm_data: Dict, can_data: Dict) -> str:
+    """生成 alarm_rule_table.c（同时生成 DISPLAY_KEY_TABLE）"""
     rules = alarm_data.get("alarm_rules", [])
+
+    # 收集所有 display_key：先 can_ids.yaml 里的所有 field name，
+    # 再 alarm_rules.yaml 里实际用到的 key（去重保序）
+    keys = []
+    seen = set()
+    for src in can_data.get("can_sources", []):
+        for f in src.get("fields", []):
+            k = f.get("name", "")
+            if k and k not in seen:
+                seen.add(k); keys.append(k)
+    for r in rules:
+        k = r.get("display_key", "")
+        if k and k not in seen:
+            seen.add(k); keys.append(k)
+    key_index = {k: i for i, k in enumerate(keys)}
+
     rule_entries = []
     action_entries = []
     action_offset = 0
 
     for i, rule in enumerate(rules):
         op_str = cond_to_op(rule.get("condition", "value > 0"))
-        display_key = rule.get("display_key", "")
+        dk = rule.get("display_key", "")
+        dk_idx = key_index.get(dk, 0)
         priority_str = f"PRIORITY_{rule.get('priority', 'medium').upper()}"
 
         rule_entries.append(
-            f"    {{\"{rule['name']}\", /* display_key */ 0, "
+            f"    {{\"{rule['name']}\", /* display_key */ {dk_idx}, "
             f"COND_{op_str}, {extract_threshold(rule.get('condition', 'value > 0'))}f, "
             f"{priority_str}, {rule.get('duration_ms', 0)}, "
             f"{len(rule.get('actions', []))}, {action_offset}}}"
@@ -225,10 +249,17 @@ def gen_alarm_rule_table_c(alarm_data: Dict) -> str:
 
     rule_str = ",\n".join(rule_entries)
     action_str = ",\n".join(action_entries)
+    key_str = ",\n".join(f'    "{k}"' for k in keys)
+
     return f"""// ⚠️ 此文件由 tools/yaml_to_c.py 自动生成
-// ⚠️ 请勿手动修改，修改请改 config/alarm_rules.yaml
+// ⚠️ 请勿手动修改，修改请改 config/alarm_rules.yaml / can_ids.yaml
 
 #include "alarm_rule_def.h"
+
+const char* const DISPLAY_KEY_TABLE[] = {{
+{key_str}
+}};
+const int DISPLAY_KEY_TABLE_COUNT = {len(keys)};
 
 const AlarmRuleDef ALARM_RULE_TABLE[] = {{
 {rule_str}
@@ -476,7 +507,7 @@ def generate_all():
         "can_field_def.h": lambda _: gen_can_field_def_h(can_data),
         "can_field_table.cpp": lambda d: gen_can_field_table_c(d),
         "alarm_rule_def.h": lambda _: gen_alarm_rule_def_h(alarm_data),
-        "alarm_rule_table.cpp": lambda d: gen_alarm_rule_table_c(d),
+        "alarm_rule_table.cpp": lambda d: gen_alarm_rule_table_c(d, can_data),
         "seat_belt_def.h": lambda _: gen_seat_belt_def_h(seat_data),
         "seat_belt_table.cpp": lambda d: gen_seat_belt_table_c(d),
         "indicator_def.h": lambda _: gen_indicator_def_h(indicator_data),

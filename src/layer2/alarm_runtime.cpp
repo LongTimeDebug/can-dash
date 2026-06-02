@@ -37,7 +37,12 @@ void AlarmRuntime::onValueChanged(const char* display_key, float value) {
         // 跳过已确认且当前非活跃的报警
         if (state->acknowledged && !state->active) continue;
 
-        // 匹配 display_key（简化：按规则索引映射，实际用 name map）
+        // 按 display_key 过滤：只评估匹配当前 value 的规则
+        // （避免 bat_volt 变化时把 bat_soc 的规则也跑一遍）
+        if (rule->display_key_index >= DISPLAY_KEY_TABLE_COUNT) continue;
+        const char* rule_key = DISPLAY_KEY_TABLE[rule->display_key_index];
+        if (strcmp(rule_key, display_key) != 0) continue;
+
         bool condition_met = evalCondition(rule->op, rule->threshold, value);
 
         if (condition_met) {

@@ -37,7 +37,7 @@ const char* socket_get_path(void);
 // Version: 兼容版本号，major.minor.patch × 10000 + minor × 100 + patch
 #define SHM_MAGIC       0xCA07D15A  // "CANDASH" 标识
 #define SHM_VERSION_MAJOR  1
-#define SHM_VERSION_MINOR  1
+#define SHM_VERSION_MINOR  2
 #define SHM_VERSION_PATCH  0
 #define SHM_VERSION     ((SHM_VERSION_MAJOR * 10000) + (SHM_VERSION_MINOR * 100) + SHM_VERSION_PATCH)
 
@@ -93,6 +93,8 @@ typedef struct {
     uint64_t  last_commit_ms;     // processor 上次 commit 的 CLOCK_MONOTONIC 毫秒
     uint32_t  updated_mask;       // bit[i]=1 表示字段 i 已更新（消费后可清除）
     uint32_t  checksum;           // CRC32 of struct bytes [12..N-1]（不含 magic/version/checksum）
+    uint32_t  frame_seq;          // 帧序号（processor 每次 commit 自增，用于检测丢帧/重放）
+    uint32_t  _pad_after_seq;     // 保持 8 字节对齐（PR2 新增）
     // Basic fields (same as before)
     float     motor_rpm;
     float     vehicle_speed;
@@ -124,7 +126,7 @@ typedef struct {
     uint8_t   alarm_active;
     char      alarm_message_zh[SHM_ALARM_TEXT_LEN];
     ShmIndicatorSlot indicators[SHM_INDICATOR_COUNT];
-    uint8_t   _padding[231];     // 保持总大小不变（新增 checksum 4 字节，padding 减 4）
+    uint8_t   _padding[227];     // 保持总大小不变（新增 frame_seq 4 字节，padding 减 4）
 } DisplayDataShm;
 
 
@@ -155,9 +157,10 @@ int      shm_display_read(DisplayDataShm* out_data, uint64_t* out_timestamp_ms);
 uint64_t shm_display_poll(uint64_t last_timestamp);
 void     shm_display_close(void);
 
-// 健康监测（dash 端用）
+// 健康监测
 int      shm_display_health_check(void);              // 0=OK, -1=未连接, -2=ABI 不匹配
 uint64_t shm_display_age_ms(uint64_t now_ms);         // 距上次 commit 的毫秒数，UINT64_MAX=未连接
+uint32_t shm_display_frame_seq(void);                // 当前帧序号（dash 用，可用于检测丢帧）
 
 #ifdef __cplusplus
 }

@@ -78,10 +78,39 @@ void DashboardBackend::onTick() {
         return;
     }
 
+    // ─── PR2: 数据健康（每 tick 16ms 更新）────────────
+    // 距上次 commit 的毫秒数（age）
+    qulonglong newAge = static_cast<qulonglong>(age);
+    bool dataHealthDirty = false;
+    if (newAge != m_dataAgeMs) {
+        m_dataAgeMs = newAge;
+        dataHealthDirty = true;
+    }
+
+    // FPS 滑动窗口（1s 内 commit 次数）
+    if (m_fpsWindowStart == 0) {
+        m_fpsWindowStart = now;
+    }
+    if (now - m_fpsWindowStart >= 1000) {
+        double fps = static_cast<double>(m_fpsCountInWindow) * 1000.0 /
+                     static_cast<double>(now - m_fpsWindowStart);
+        if (qAbs(fps - m_dataFps) > 0.5) {
+            m_dataFps = fps;
+            dataHealthDirty = true;
+        }
+        m_fpsWindowStart = now;
+        m_fpsCountInWindow = 0;
+    }
+
     // ─── 轮询 + 读取 ───────────────────────────────
     uint64_t ts = shm_display_poll(last_ts);
-    if (ts == last_ts) return;  // 无变化
+    if (ts == last_ts) {
+        // 无新帧，仅 age 变了
+        if (dataHealthDirty) emit dataHealthChanged();
+        return;
+    }
     last_ts = ts;
+    m_fpsCountInWindow++;  // 收到一帧，计入 FPS 窗口
 
     DisplayDataShm data = {};
     int rc = shm_display_read(&data, nullptr);
@@ -117,6 +146,42 @@ void DashboardBackend::onTick() {
     newData["rear_buckle"] = data.rear_buckle;
     m_displayData = newData;
     emit displayDataChanged();
+
+    // ─── PR2: 帧序号 + 丢帧检测 ────────────────────
+    qulonglong curSeq = data.frame_seq;
+    if (m_lastFrameSeq > 0 && curSeq > m_lastFrameSeq + 1) {
+        m_droppedFrames += (curSeq - m_lastFrameSeq - 1);
+    }
+    m_lastFrameSeq = curSeq;
+    if (curSeq != m_frameSeq) {
+        m_frameSeq = curSeq;
+        dataHealthDirty = true;
+    }
+
+    // ─── PR2: 字段有效性（基于 updated_mask）────────
+    QVariantMap newValidity;
+    static const struct { int bit; const char* name; } kFieldMap[] = {
+        {SHM_FIELD_MOTOR_RPM,         "motor_rpm"},
+        {SHM_FIELD_VEHICLE_SPEED,     "vehicle_speed"},
+        {SHM_FIELD_BAT_VOLT,          "bat_volt"},
+        {SHM_FIELD_BAT_CURR,          "bat_curr"},
+        {SHM_FIELD_BAT_SOC,           "bat_soc"},
+        {SHM_FIELD_MOTOR_TEMP,        "motor_temp"},
+        {SHM_FIELD_BRAKE,             "brake"},
+        {SHM_FIELD_DRIVER_OCCUPIED,   "driver_occupied"},
+        {SHM_FIELD_PASSENGER_OCCUPIED,"passenger_occupied"},
+        {SHM_FIELD_DRIVER_BUCKLED,    "driver_buckled"},
+        {SHM_FIELD_PASSENGER_BUCKLED, "passenger_buckled"},
+        {SHM_FIELD_REAR_BUCKLE,       "rear_buckle"},
+    };
+    for (const auto& f : kFieldMap) {
+        newValidity[f.name] = (data.updated_mask & (1U << f.bit)) != 0;
+    }
+    if (newValidity != m_fieldValidity) {
+        m_fieldValidity = newValidity;
+        dataHealthDirty = true;
+    }
+    if (dataHealthDirty) emit dataHealthChanged();
 
     // ─── 更新报警状态 ──────────────────────────────
     bool alarmActive = data.alarm_active != 0;

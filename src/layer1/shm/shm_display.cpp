@@ -47,15 +47,13 @@ static uint32_t crc32_compute(const void* buf, size_t len) {
     return c ^ 0xFFFFFFFFU;
 }
 
-// 计算结构体 checksum（跳过 magic/version/checksum 自身：offset 0..11 不算，20 不算）
-// 覆盖范围：offset 12..N-1（共 N-16 字节）
+// 计算结构体 checksum（跳过 magic/version/last_commit_ms/updated_mask/checksum/frame_seq/pad）
+// 实际：magic(0..3) version(4..7) last_commit_ms(8..15) updated_mask(16..19) checksum(20..23) frame_seq(24..27) _pad(28..31) motor_rpm(32..)
+// 要排除的：0..31（含 magic/version/last_commit_ms/updated_mask/checksum/frame_seq/pad）
+// 包含的：32..N-1
 static uint32_t compute_checksum(const DisplayDataShm* d) {
     const uint8_t* base = (const uint8_t*)d;
-    // 跳过 [0..11]=magic+version+last_commit_ms(8 字节共到 16-1=15？)
-    // 实际：magic(0..3) version(4..7) last_commit_ms(8..15) updated_mask(16..19) checksum(20..23) motor_rpm(24..)
-    // 要排除的：0..23（含 magic/version/last_commit_ms/updated_mask/checksum）
-    // 包含的：24..N-1
-    return crc32_compute(base + 24, sizeof(DisplayDataShm) - 24);
+    return crc32_compute(base + 32, sizeof(DisplayDataShm) - 32);
 }
 
 // ─── 运行时路径解析 ─────────────────────────────────────
@@ -227,12 +225,19 @@ void shm_display_set_alarm(const char* text_zh) {
     }
 }
 
-// ─── 提交（写 monotonic 毫秒 + 重算 checksum + msync）────────
+// ─── 提交（写 monotonic 毫秒 + 帧序号自增 + 重算 checksum + msync）────────
 void shm_display_commit(void) {
     if (!g_ptr) return;
+    g_ptr->frame_seq++;
     g_ptr->last_commit_ms = monotonic_ms();
     g_ptr->checksum = compute_checksum(g_ptr);
     msync(g_ptr, sizeof(DisplayDataShm), MS_SYNC);
+}
+
+// ─── 帧序号读取（dash 用，可选）────────────────────────
+uint32_t shm_display_frame_seq(void) {
+    if (!g_ptr) return 0;
+    return g_ptr->frame_seq;
 }
 
 // ─── 关闭 ──────────────────────────────────────────────

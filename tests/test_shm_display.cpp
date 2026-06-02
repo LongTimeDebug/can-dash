@@ -55,15 +55,18 @@ int main() {
     assert(offsetof(DisplayDataShm, last_commit_ms) == 8);
     assert(offsetof(DisplayDataShm, updated_mask) == 16);
     assert(offsetof(DisplayDataShm, checksum) == 20);
+    assert(offsetof(DisplayDataShm, frame_seq) == 24);   // PR2 新增
+    assert(offsetof(DisplayDataShm, _pad_after_seq) == 28);  // PR2 新增
+    assert(offsetof(DisplayDataShm, motor_rpm) == 32);   // PR2: 从 24 后移
     printf("  ✓ 字段偏移正确，大小 = 488 字节\n");
 
     // ─── 测试 2：magic / version 常量 ───
     printf("\n[测试2] ABI 标识常量\n");
     assert(SHM_MAGIC == 0xCA07D15A);
     assert(SHM_VERSION_MAJOR == 1);
-    assert(SHM_VERSION_MINOR == 1);
+    assert(SHM_VERSION_MINOR == 2);  // PR2: bumped to 1.2 (frame_seq field)
     assert(SHM_VERSION_PATCH == 0);
-    assert(SHM_VERSION == 10100);
+    assert(SHM_VERSION == 10200);
     printf("  ✓ magic=0x%08X version=%u\n", SHM_MAGIC, SHM_VERSION);
 
     // ─── 测试 3：processor 写 → dash 读（happy path）───
@@ -162,6 +165,21 @@ int main() {
     assert(shm_display_age_ms(fake_now) == 0);
     assert(shm_display_age_ms(fake_now - 100) == 0);
     printf("  ✓ age_ms 正常路径 OK\n");
+    shm_display_close();
+    cleanup_shm();
+
+    // ─── 测试 6b: frame_seq 自增（PR2 新增）───
+    printf("\n[测试6b] frame_seq 自增（PR2）\n");
+    assert(shm_display_create() == 0);
+    uint32_t seq0 = shm_display_frame_seq();
+    shm_display_commit();
+    uint32_t seq1 = shm_display_frame_seq();
+    shm_display_commit();
+    shm_display_commit();
+    uint32_t seq3 = shm_display_frame_seq();
+    assert(seq1 == seq0 + 1);
+    assert(seq3 == seq1 + 2);
+    printf("  ✓ frame_seq: %u -> %u -> %u (单调递增)\n", seq0, seq1, seq3);
     shm_display_close();
     cleanup_shm();
 

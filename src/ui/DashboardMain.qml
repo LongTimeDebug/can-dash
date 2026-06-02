@@ -309,7 +309,56 @@ ApplicationWindow {
         anchors.right: parent.right
         height: 55
         color: "#AA000000"; border.color: "#333333"; border.width: 1
-        Row { anchors.fill: parent; anchors.margins: 10; spacing: 60
+
+        // PR2: 数据健康指标 (FPS / age / frame seq / dropped) — 右侧
+        Row {
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.right: parent.right
+            anchors.rightMargin: 20
+            spacing: 16
+
+            // FPS（带颜色：≥15 绿，<15 黄，<5 红）
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: "FPS " + dashboard.dataFps.toFixed(1)
+                color: dashboard.dataFps >= 15 ? "#00AA44" :
+                       dashboard.dataFps >= 5  ? "#FFAA00" : "#FF4400"
+                font.pixelSize: 13
+                font.family: "Roboto Mono, monospace"
+            }
+
+            // 数据龄
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: "AGE " + dashboard.dataAgeMs + "ms"
+                color: dashboard.dataAgeMs < 100  ? "#00AA44" :
+                       dashboard.dataAgeMs < 500  ? "#FFAA00" : "#FF4400"
+                font.pixelSize: 13
+                font.family: "Roboto Mono, monospace"
+            }
+
+            // 帧序号
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: "SEQ " + dashboard.frameSeq
+                color: "#88CCFF"
+                font.pixelSize: 13
+                font.family: "Roboto Mono, monospace"
+            }
+
+            // 丢帧计数（>0 时显示，0 时隐藏）
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                visible: dashboard.droppedFrames > 0
+                text: "DROP " + dashboard.droppedFrames
+                color: "#FF6600"
+                font.pixelSize: 13
+                font.weight: Font.Bold
+                font.family: "Roboto Mono, monospace"
+            }
+        }
+
+        Row { anchors.fill: parent; anchors.margins: 10; spacing: 40
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: "⏱ " + dashboard.tr("app.version")

@@ -39,6 +39,13 @@ class DashboardBackend : public QObject {
     Q_PROPERTY(bool processorOnline READ processorOnline NOTIFY processorHealthChanged)
     Q_PROPERTY(QString processorStatus READ processorStatus NOTIFY processorHealthChanged)
 
+    // ─── 数据健康（PR2 新增：FPS/数据龄/帧序号/字段有效性）───
+    Q_PROPERTY(qulonglong dataAgeMs READ dataAgeMs NOTIFY dataHealthChanged)
+    Q_PROPERTY(qulonglong frameSeq READ frameSeq NOTIFY dataHealthChanged)
+    Q_PROPERTY(double dataFps READ dataFps NOTIFY dataHealthChanged)
+    Q_PROPERTY(QVariantMap fieldValidity READ fieldValidity NOTIFY dataHealthChanged)
+    Q_PROPERTY(uint64_t droppedFrames READ droppedFrames NOTIFY dataHealthChanged)
+
 public:
     explicit DashboardBackend(QObject* parent = nullptr);
     ~DashboardBackend();
@@ -72,6 +79,13 @@ public:
     bool processorOnline() const { return m_processorOnline; }
     QString processorStatus() const { return m_processorStatus; }
 
+    // 数据健康（PR2 新增）
+    qulonglong dataAgeMs() const { return m_dataAgeMs; }
+    qulonglong frameSeq() const { return m_frameSeq; }
+    double dataFps() const { return m_dataFps; }
+    QVariantMap fieldValidity() const { return m_fieldValidity; }
+    uint64_t droppedFrames() const { return m_droppedFrames; }
+
     // 指示灯查询
     Q_INVOKABLE bool indicatorOn(const QString& key) const;
 
@@ -88,6 +102,7 @@ signals:
     void displayDataChanged();
     void languageChanged();
     void processorHealthChanged();
+    void dataHealthChanged();   // PR2 新增（FPS/age/frameSeq/validity）
 
 public slots:
     void onTick();
@@ -118,4 +133,15 @@ private:
     bool m_processorOnline = false;
     QString m_processorStatus = QStringLiteral("disconnected");
     uint64_t m_lastSeenMs = 0;
+
+    // 数据健康状态（PR2 新增）
+    qulonglong m_dataAgeMs = 0;        // 距上次 commit 的毫秒数
+    qulonglong m_frameSeq = 0;         // 上一帧的 frame_seq
+    qulonglong m_lastFrameSeq = 0;     // 上次已处理的 frame_seq（用于检测丢帧）
+    uint64_t m_droppedFrames = 0;      // 累计丢帧数（m_frameSeq - m_lastFrameSeq - 1）
+    double m_dataFps = 0.0;            // 数据 FPS（最近 1s 内 commit 次数）
+    QVariantMap m_fieldValidity;       // 字段名 → bool (true=有效/false=无效)
+    uint64_t m_fpsWindowStart = 0;     // FPS 滑动窗口起点
+    uint32_t m_fpsCountInWindow = 0;   // 窗口内 commit 次数
+    uint32_t m_lastUpdatedMask = 0;    // 上次的 updated_mask（用于生成 fieldValidity）
 };

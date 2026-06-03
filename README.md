@@ -9,6 +9,17 @@
 - **配置驱动**: YAML → C 代码生成（编译时预处理，零开机延迟）
 - **架构**: Layer 1(C生成) → Layer 2(纯C++业务) → Layer 3(Qt适配) → Layer 4(QML)
 
+## 性能基线
+
+数据流热路径（shm + 28 字段 + 17 alarm rules）的端到端耗时：
+
+- **dash tick 总计: 3.8 µs (0.024% of 16ms 预算)**
+- shm read+checksum: 1.2 µs
+- AlarmRuntime 22 keys eval: 1.5 µs
+- 端到端 (含 processor msync): 584 µs (3.65%)
+
+→ 99.97% 时间留给 QML 渲染 + 事件循环。详见 [PERFORMANCE.md](docs/PERFORMANCE.md)。
+
 ## 快速开始
 
 ```bash

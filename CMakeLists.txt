@@ -209,6 +209,18 @@ target_include_directories(test_time_util PRIVATE
     ${CMAKE_SOURCE_DIR}/src ${LAYER2_DIR})
 add_test(NAME TimeUtilTest COMMAND test_time_util)
 
+# 性能基线（perf baseline）— 测量数据流热路径耗时
+# 永远 print 数字，预算超 50% 时给出 warning（不 hard-fail，避免不同机器抖动）
+add_executable(test_perf_baseline tests/test_perf_baseline.cpp
+    ${LAYER2_DIR}/alarm_runtime.cpp
+    ${LAYER2_DIR}/time_util.cpp
+    ${LAYER1_DIR}/shm/shm_display.cpp
+    ${GENERATED_SOURCES})
+target_include_directories(test_perf_baseline PRIVATE
+    ${CMAKE_SOURCE_DIR}/src ${GENERATED_DIR} ${LAYER1_DIR} ${LAYER2_DIR})
+add_dependencies(test_perf_baseline run_yaml_to_c)
+add_test(NAME PerfBaselineTest COMMAND test_perf_baseline)
+
 # Transport layer tests（sim-socket + socketcan + factory）
 add_executable(test_transport tests/test_transport.cpp
     ${LAYER2_DIR}/transport/sim_socket_transport.cpp

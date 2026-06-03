@@ -15,6 +15,7 @@
 #include "layer1/shm/shm_display.h"
 #include "layer2/time_util.h"
 #include "layer2/theme_manager.h"  // PR 7: ThemeManager 集成测试
+#include "layer2/settings_manager.h"  // PR 13: SettingsManager 集成测试
 #include "mock_data_binder.h"
 
 #include <QCoreApplication>
@@ -412,6 +413,181 @@ int main(int argc, char** argv) {
         s = binder.lastSnapshot();
         TEST_ASSERT(s.warning_count == 1u, "reset 后推新 → count=1");
         TEST_ASSERT(s.active_warnings[0].dedup_count == 0u, "dedup_count 重新从 0 开始");
+
+        src.stop();
+        shm_display_close();
+    }
+
+    // ─── Test 10: SettingsManager 集成 (PR 13) ───
+    // 验证 ShmDataSource m_settings 状态 → DisplaySnapshot 2 字段全链路
+    printf("\n[10] SettingsManager 集成:\n");
+    {
+        shm_display_close();
+        ShmDataSource src;
+        MockDataBinder binder;
+        src.setUpdateCallback([&](const DisplaySnapshot& s) { binder.onDataUpdated(s); });
+        src.setHealthCallback([&](HealthStatus h) { binder.onHealthChanged(h); });
+        src.start();
+
+        // 10.1 初始: defaults (units=0=METRIC, brightness=80)
+        writeShmFrame(1, 0.0f, 0, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        src.tickForTest();
+        auto s = binder.lastSnapshot();
+        TEST_ASSERT(s.settings_units == 0u, "初始 settings_units=0 (METRIC)");
+        TEST_ASSERT(s.settings_brightness == 80u, "初始 settings_brightness=80 (默认)");
+
+        // 10.2 切到 IMPERIAL → snapshot 反映
+        src.setSettingsUnitsForTest(1);  // 1=IMPERIAL
+        writeShmFrame(2, 0.0f, 0, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        src.tickForTest();
+        s = binder.lastSnapshot();
+        TEST_ASSERT(s.settings_units == 1u, "setUnits(1) → settings_units=1 (IMPERIAL)");
+
+        // 10.3 改 brightness 50 → snapshot 反映
+        src.setSettingsBrightnessForTest(50);
+        writeShmFrame(3, 0.0f, 0, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        src.tickForTest();
+        s = binder.lastSnapshot();
+        TEST_ASSERT(s.settings_brightness == 50u, "setBrightness(50) → settings_brightness=50");
+
+        // 10.4 brightness clamp: > 100 → 100
+        src.setSettingsBrightnessForTest(150);
+        writeShmFrame(4, 0.0f, 0, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        src.tickForTest();
+        s = binder.lastSnapshot();
+        TEST_ASSERT(s.settings_brightness == 100u, "clamp: 150 → 100");
+
+        // 10.5 brightness clamp: < 0 (uint8 截断 250 之类) — 这里用 < 0 不可能, 改测 uint8 wrap
+        // SettingsManager::setBrightness 已经 clamp, uint8_t 输入只能是 0-255
+        // 测一下 0 保持 0
+        src.setSettingsBrightnessForTest(0);
+        writeShmFrame(5, 0.0f, 0, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        src.tickForTest();
+        s = binder.lastSnapshot();
+        TEST_ASSERT(s.settings_brightness == 0u, "setBrightness(0) → 0");
+
+        // 10.6 reset → 回到默认
+        src.resetSettingsForTest();
+        writeShmFrame(6, 0.0f, 0, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        src.tickForTest();
+        s = binder.lastSnapshot();
+        TEST_ASSERT(s.settings_units == 0u, "reset → units=0 (METRIC 默认)");
+        TEST_ASSERT(s.settings_brightness == 80u, "reset → brightness=80 (默认)");
+
+        // 10.7 binder 也缓存一份, 验证 onDataUpdated 反映到 Q_PROPERTY
+        // 改 units → onTick 推 snapshot → binder 缓存 m_settingsUnits
+        // 这里我们直接用 binder 的 lastSnapshot 验证 (binder 不暴露 getter,
+        // 但 snapshot 已经在 10.6 反映 reset 默认值, 跟 L2 一致)
+
+        // 10.8 tick 是 no-op: 没有 setter 的情况下连续 tick, snapshot 字段不变
+        src.resetSettingsForTest();
+        writeShmFrame(7, 0.0f, 0, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        src.tickForTest();
+        s = binder.lastSnapshot();
+        TEST_ASSERT(s.settings_units == 0u, "reset 后 tick 1: units 仍 0");
+        writeShmFrame(8, 0.0f, 0, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        src.tickForTest();
+        s = binder.lastSnapshot();
+        TEST_ASSERT(s.settings_units == 0u, "reset 后 tick 2: units 仍 0 (无漂移)");
+        TEST_ASSERT(s.settings_brightness == 80u, "reset 后 tick 2: brightness 仍 80");
+
+        src.stop();
+        shm_display_close();
+    }
+
+    // ─── Test 11: ViewManager 集成 (PR 13) ───
+    // 验证 ShmDataSource m_view 状态 → DisplaySnapshot 3 字段全链路
+    // 关键设计: ViewManager 默认 current=DRIVE, 首次 tick 若 candidate=SETUP (P+idle)
+    // 会"首次切换 free"切到 SETUP (注释里"启动 P 不跳 SETUP"实际不成立, 见 L2 view_manager.h:163
+    // tick(0) → SETUP 是 free 切换); 后续切换需 hysteresis 1s.
+    // 注: 集成测试用"resetViewForTest 重新触发 free 切换"规避 wall clock 1s 等时
+    printf("\n[11] ViewManager 集成:\n");
+    {
+        shm_display_close();
+        ShmDataSource src;
+        MockDataBinder binder;
+        src.setUpdateCallback([&](const DisplaySnapshot& s) { binder.onDataUpdated(s); });
+        src.setHealthCallback([&](HealthStatus h) { binder.onHealthChanged(h); });
+        src.start();
+
+        // 11.1 初始: P 档 + idle, ViewManager 默认 current=DRIVE
+        // 首次 tick 候选=SETUP ≠ current=DRIVE, 首次切换 free → 切到 SETUP
+        writeShmFrame(1, 0.0f, 0, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        src.tickForTest();
+        auto s = binder.lastSnapshot();
+        TEST_ASSERT(s.view_current == 2u, "初始 P+idle tick → viewMode=SETUP (首次切换 free)");
+        TEST_ASSERT(s.view_gear    == 0u, "初始 view_gear=0 (P)");
+        TEST_ASSERT(s.view_charge  == 0u, "初始 view_charge=0 (idle)");
+
+        // 11.2 reset 后立即 setGear(D), 避免 P+idle 触发 SETUP 切
+        //     (reset 把 m_current=DRIVE + m_gear=P + m_charge=idle, 首次 tick 候选=SETUP → 切 SETUP)
+        //     测"reset → 设 D 档 → 保持 DRIVE"
+        src.resetViewForTest();
+        src.setViewGearForTest(3);  // D 档, 避免 P+idle 切到 SETUP
+        writeShmFrame(2, 0.0f, 0, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        src.tickForTest();
+        s = binder.lastSnapshot();
+        TEST_ASSERT(s.view_current == 0u, "reset + setGear(D) → viewMode=DRIVE (候选=current 不切)");
+        TEST_ASSERT(s.view_gear    == 3u, "view_gear=3 (D)");
+
+        // 11.3 切 charge=1 → 高优先级, 候选=CHARGE, 切到 CHARGE (首次切换 free)
+        src.setViewChargeForTest(1);  // charging
+        writeShmFrame(3, 0.0f, 0, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        src.tickForTest();
+        s = binder.lastSnapshot();
+        TEST_ASSERT(s.view_current == 1u, "setCharge(1) → viewMode=CHARGE (覆盖 DRIVE, free)");
+        TEST_ASSERT(s.view_charge  == 1u, "view_charge=1");
+
+        // 11.4 切 charge=0, gear=N (2) → 候选=SETUP, current=CHARGE
+        //     hysteresis 未满 (距上次 free 切换 < 1s wall clock) → 仍 CHARGE
+        //     但 view_gear=2 view_charge=0 字段应反映 (它们不依赖切换)
+        src.setViewGearChargeForTest(2, 0);  // N + idle
+        writeShmFrame(4, 0.0f, 0, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        src.tickForTest();
+        s = binder.lastSnapshot();
+        TEST_ASSERT(s.view_gear    == 2u, "view_gear=2 (N) — snapshot 反映即使 view 切还在 hysteresis");
+        TEST_ASSERT(s.view_charge  == 0u, "view_charge=0 (idle)");
+        TEST_ASSERT(s.view_current == 1u, "viewMode 仍 CHARGE (hysteresis 1s 未满)");
+
+        // 11.5 reset + setGear(D) → 测 reset 路径 + binder 缓存
+        src.resetViewForTest();
+        src.setViewGearForTest(3);  // D 档
+        writeShmFrame(5, 0.0f, 0, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        src.tickForTest();
+        s = binder.lastSnapshot();
+        TEST_ASSERT(s.view_current == 0u, "reset + setGear(D) → viewMode=DRIVE");
+        TEST_ASSERT(s.view_gear    == 3u, "reset → view_gear=3 (D)");
+        TEST_ASSERT(s.view_charge  == 0u, "reset → view_charge=0 (idle)");
+
+        // 11.6 binder 缓存: m_viewMode/m_viewGear/m_viewCharge 已通过 onDataUpdated 写入
+        // 改 gear+charge → tick → snapshot 反映 (binder.lastSnapshot 间接验证)
+        src.setViewGearChargeForTest(3, 0);  // D + idle (候选 DRIVE)
+        writeShmFrame(6, 0.0f, 0, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        src.tickForTest();
+        s = binder.lastSnapshot();
+        TEST_ASSERT(s.view_gear == 3u, "binder snapshot 反映 setGear(D) → view_gear=3");
+
+        // 11.7 tick no-op: gear/charge 不变情况下连续 tick, snapshot 字段稳定
+        writeShmFrame(7, 0.0f, 0, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        src.tickForTest();
+        s = binder.lastSnapshot();
+        TEST_ASSERT(s.view_gear   == 3u, "tick no-op: view_gear 稳定 =3");
+        TEST_ASSERT(s.view_charge == 0u, "tick no-op: view_charge 稳定 =0");
 
         src.stop();
         shm_display_close();

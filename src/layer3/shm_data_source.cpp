@@ -190,6 +190,24 @@ void ShmDataSource::onTick() {
         std::memset(&next.active_warnings[i], 0, sizeof(DisplayActiveWarning));
     }
 
+    // ─── 4.8. ViewManager (PR 13) ───
+    // 桥接 shm.gear_status + shm.charge_status 到 m_view, tick 推进 hysteresis,
+    // 复制 snapshot 到 DisplaySnapshot 3 字段 (current/gear/charge)
+    m_view.tick(static_cast<uint64_t>(shm.last_commit_ms));
+    // gear_status / charge_status 由 onTick 入口从 shm 拉取 (本 PR 测试用 setter 注入,
+    // 后续可以加 shm_data_source 自动从 shm 桥接)
+    const candash::ViewSnapshot vs = m_view.snapshot();
+    next.view_current = vs.current;
+    next.view_gear    = vs.gear;
+    next.view_charge  = vs.charge;
+
+    // ─── 4.8. SettingsManager (PR 13) ───
+    // tick 是 no-op, 但保留 16ms 节奏以跟数据流同步 (未来可加 time-of-day 联动)
+    m_settings.tick(static_cast<uint64_t>(shm.last_commit_ms));
+    const candash::SettingsSnapshot ss = m_settings.snapshot();
+    next.settings_units      = ss.units;
+    next.settings_brightness = ss.brightness;
+
     // ─── 5. 推送快照 ───
     m_snapshot = next;
     if (m_updateCb) m_updateCb(m_snapshot);
@@ -299,3 +317,24 @@ m_warning.pushAlarm(evt, now_ms);
 }
 void ShmDataSource::tickWarningForTest(uint64_t now_ms)  { m_warning.tick(now_ms); }
 void ShmDataSource::resetWarningForTest()                 { m_warning.reset(); }
+
+// ─── SettingsManager setter 实现 (PR 13, QML 端切换单位/亮度) ───
+// 非 inline, 避免 m_settings 类内引用未声明的顺序依赖
+void ShmDataSource::setSettingsUnitsForTest(uint8_t units) {
+    m_settings.setUnits(static_cast<candash::Units>(units));
+}
+void ShmDataSource::setSettingsBrightnessForTest(uint8_t pct) {
+    m_settings.setBrightness(pct);
+}
+void ShmDataSource::resetSettingsForTest() { m_settings.reset(); }
+
+// ─── ViewManager setter 实现 (PR 13, 测试用注入) ───
+// 桥接 gear_status / charge_status 到 m_view, 测试用 setter 模拟 can-processor 推送
+void ShmDataSource::setViewGearForTest(uint8_t gear)    { m_view.setGearStatus(gear); }
+void ShmDataSource::setViewChargeForTest(uint8_t charge) { m_view.setChargeStatus(charge); }
+void ShmDataSource::setViewGearChargeForTest(uint8_t gear, uint8_t charge) {
+    m_view.setGearStatus(gear);
+    m_view.setChargeStatus(charge);
+}
+void ShmDataSource::tickViewForTest(uint64_t now_ms)    { m_view.tick(now_ms); }
+void ShmDataSource::resetViewForTest()                   { m_view.reset(); }

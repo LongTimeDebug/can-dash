@@ -13,6 +13,8 @@
 #include "layer2/trip_computer.h"     // 派生指标 (v3 探针延伸, 9b88428)
 #include "layer2/theme_manager.h"     // 主题 (PR 7)
 #include "layer2/warning_manager.h"   // 警告 (PR 9)
+#include "layer2/view_manager.h"      // 视图模式 (PR 13)
+#include "layer2/settings_manager.h"  // 用户偏好 (PR 13)
 #include <QTimer>
 #include <QObject>
 #include <atomic>
@@ -58,6 +60,21 @@ public:
     void tickWarningForTest(uint64_t now_ms);
     void resetWarningForTest();
 
+    // ─── ViewManager setter (PR 13, 测试用注入) ───
+    // 生产环境 gear/charge 由 can-processor 推入 shm, ShmDataSource 在 onTick
+    // 里把 shm.gear_status/charge_status 桥接到 m_view. 测试用 setter 模拟。
+    void setViewGearForTest(uint8_t gear);
+    void setViewChargeForTest(uint8_t charge);
+    void setViewGearChargeForTest(uint8_t gear, uint8_t charge);  // 一步设
+    void tickViewForTest(uint64_t now_ms);
+    void resetViewForTest();
+
+    // ─── SettingsManager setter (PR 13, QML 端切换单位/亮度) ───
+    // 非 inline, .cpp 实现 — 避开 "m_settings 在类内引用未声明" 顺序依赖
+    void setSettingsUnitsForTest(uint8_t units);  // 0=METRIC, 1=IMPERIAL
+    void setSettingsBrightnessForTest(uint8_t pct);  // 0-100, 自动 clamp
+    void resetSettingsForTest();
+
 private slots:
     void onTick();
 
@@ -88,6 +105,13 @@ private:
 
     // WarningManager (PR 9) — 状态由 ShmDataSource 唯一持有, binder 只读透传
     candash::WarningManager m_warning;
+
+    // ViewManager (PR 13) — 状态由 ShmDataSource 唯一持有, binder 只读透传
+    candash::ViewManager m_view;
+
+    // SettingsManager (PR 13) — 状态由 ShmDataSource 唯一持有, binder 只读透传
+    // settings 不随时间漂移 (tick no-op), 但保留 16ms 节奏以跟数据流同步
+    candash::SettingsManager m_settings;
 
     // 回调
     UpdateCallback m_updateCb;

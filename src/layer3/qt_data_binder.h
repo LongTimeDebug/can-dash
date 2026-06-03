@@ -72,6 +72,17 @@ class QtDataBinder : public QObject, public IDataBinder {
     Q_PROPERTY(int warningCount READ warningCount NOTIFY warningChanged)
     Q_PROPERTY(bool hasCritical READ hasCritical NOTIFY warningChanged)
 
+    // ─── SettingsManager (PR 13) — 共享 settingsChanged(), units/brightness ───
+    Q_PROPERTY(int settingsUnits READ settingsUnits NOTIFY settingsChanged)
+    Q_PROPERTY(int settingsBrightness READ settingsBrightness NOTIFY settingsChanged)
+
+    // ─── ViewManager (PR 13) — 共享 viewChanged(), mode/gear/charge/chargeActive ───
+    // QML 端通过 viewMode 切 StackView, isChargeView 用来点亮充电动画, gear/charge 用于调试
+    Q_PROPERTY(int viewMode READ viewMode NOTIFY viewChanged)
+    Q_PROPERTY(bool isChargeView READ isChargeView NOTIFY viewChanged)
+    Q_PROPERTY(int viewGear READ viewGear NOTIFY viewChanged)
+    Q_PROPERTY(int viewCharge READ viewCharge NOTIFY viewChanged)
+
 public:
     explicit QtDataBinder(QObject* parent = nullptr);
     ~QtDataBinder() override;
@@ -128,6 +139,16 @@ public:
     int  warningCount() const              { return m_warningCount; }
     bool hasCritical() const               { return m_hasCritical; }
 
+    // 设置 (PR 13) — 透传到 ShmDataSource.m_settings
+    int settingsUnits() const       { return static_cast<int>(m_settingsUnits); }
+    int settingsBrightness() const  { return static_cast<int>(m_settingsBrightness); }
+
+    // 视图 (PR 13) — 透传到 ShmDataSource.m_view
+    int  viewMode() const     { return static_cast<int>(m_viewMode); }   // 0=DRIVE, 1=CHARGE, 2=SETUP
+    bool isChargeView() const { return m_viewMode == 1; }                 // 派生: 充电视图中
+    int  viewGear() const     { return static_cast<int>(m_viewGear); }    // 0=P, 1=R, 2=N, 3=D, 4=S
+    int  viewCharge() const   { return static_cast<int>(m_viewCharge); }  // 0=idle, 1+=charging
+
     // QML 通用接口
     Q_INVOKABLE QVariant get(const QString& key) const;
     Q_INVOKABLE void set(const QString& key, const QVariant& value);
@@ -148,6 +169,8 @@ signals:
     void tripChanged();  // v3 探针延伸: 派生指标变更
     void themeChanged();  // PR 7: 主题模式或 5 色任一变化
     void warningChanged();  // PR 9: warningCount/list/hasCritical 任一变化
+    void settingsChanged();  // PR 13: settingsUnits/brightness 任一变化
+    void viewChanged();      // PR 13: viewMode/gear/charge 任一变化
 
 private:
     QVariantMap buildDisplayData(const DisplayData& d) const;
@@ -209,6 +232,17 @@ private:
     QVariantList m_warningActiveList;
     int          m_warningCount = 0;
     bool         m_hasCritical  = false;
+
+    // 设置 (PR 13) — 由 ShmDataSource 推过来, 缓存到这些字段
+    uint8_t m_settingsUnits      = 0;     // 0=METRIC, 1=IMPERIAL
+    uint8_t m_settingsBrightness = 80;    // 默认 80 (跟 SettingsManager::kDefaultBrightness 对齐)
+    uint8_t _m_settingsPad[2]     = {0, 0};
+
+    // 视图 (PR 13) — 由 ShmDataSource 推过来, 缓存到这些字段
+    uint8_t m_viewMode   = 0;    // 0=DRIVE (默认), 1=CHARGE, 2=SETUP
+    uint8_t m_viewGear   = 0;    // 0=P, 1=R, 2=N, 3=D, 4=S
+    uint8_t m_viewCharge = 0;    // 0=idle, 1+=charging
+    uint8_t _m_viewPad   = 0;
 
     // 缓存：上次推送的时间戳（用于算 dataAgeMs）
     uint64_t m_lastTimestampMs = 0;

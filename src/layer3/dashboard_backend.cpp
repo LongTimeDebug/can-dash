@@ -38,6 +38,8 @@ void DashboardBackend::init() {
     connect(m_qtBinder, &QtDataBinder::tripChanged, this, &DashboardBackend::tripChanged);  // v3 探针延伸
     connect(m_qtBinder, &QtDataBinder::themeChanged, this, &DashboardBackend::themeChanged);  // PR 7
     connect(m_qtBinder, &QtDataBinder::warningChanged, this, &DashboardBackend::warningChanged);  // PR 9
+    connect(m_qtBinder, &QtDataBinder::settingsChanged, this, &DashboardBackend::settingsChanged);  // PR 13
+    connect(m_qtBinder, &QtDataBinder::viewChanged,     this, &DashboardBackend::viewChanged);      // PR 13
 
     // 业务注入
     m_binder = std::move(binder);
@@ -131,6 +133,16 @@ QVariantList DashboardBackend::warningActiveList() const { return m_qtBinder ? m
 int   DashboardBackend::warningCount() const              { return m_qtBinder ? m_qtBinder->warningCount()     : 0; }
 bool  DashboardBackend::hasCritical() const               { return m_qtBinder && m_qtBinder->hasCritical(); }
 
+// 设置 getter 透传 (PR 13)
+int   DashboardBackend::settingsUnits() const             { return m_qtBinder ? m_qtBinder->settingsUnits()     : 0; }
+int   DashboardBackend::settingsBrightness() const        { return m_qtBinder ? m_qtBinder->settingsBrightness() : 80; }
+
+// 视图 getter 透传 (PR 13)
+int   DashboardBackend::viewMode() const                  { return m_qtBinder ? m_qtBinder->viewMode()     : 0; }
+bool  DashboardBackend::isChargeView() const              { return m_qtBinder && m_qtBinder->isChargeView(); }
+int   DashboardBackend::viewGear() const                  { return m_qtBinder ? m_qtBinder->viewGear()     : 0; }
+int   DashboardBackend::viewCharge() const                { return m_qtBinder ? m_qtBinder->viewCharge()   : 0; }
+
 void DashboardBackend::resetTrip() {
     // 通过具体指针调 (而不是 IDataSource 接口), 避免污染抽象边界
     if (m_shmSource) m_shmSource->resetTripForTest();
@@ -145,6 +157,21 @@ void DashboardBackend::setThemeMode(int mode) {
 
 void DashboardBackend::resetTheme() {
     if (m_shmSource) m_shmSource->resetThemeForTest();
+}
+
+// 设置 (PR 13) — 透传到 ShmDataSource.m_settings, 下次 16ms tick 自动反映
+void DashboardBackend::setSettingsUnits(int units) {
+    if (m_shmSource) {
+        m_shmSource->setSettingsUnitsForTest(static_cast<uint8_t>(units));
+    }
+}
+void DashboardBackend::setSettingsBrightness(int pct) {
+    if (m_shmSource) {
+        m_shmSource->setSettingsBrightnessForTest(static_cast<uint8_t>(pct));
+    }
+}
+void DashboardBackend::resetSettings() {
+    if (m_shmSource) m_shmSource->resetSettingsForTest();
 }
 
 QVariant DashboardBackend::get(const QString& key) const { return m_qtBinder ? m_qtBinder->get(key) : QVariant(); }

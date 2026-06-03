@@ -66,6 +66,16 @@ class DashboardBackend : public QObject {
     Q_PROPERTY(int warningCount READ warningCount NOTIFY warningChanged)
     Q_PROPERTY(bool hasCritical READ hasCritical NOTIFY warningChanged)
 
+    // 设置 (PR 13) — 透传到 QtDataBinder (QML 端能改单位/亮度)
+    Q_PROPERTY(int settingsUnits READ settingsUnits NOTIFY settingsChanged)
+    Q_PROPERTY(int settingsBrightness READ settingsBrightness NOTIFY settingsChanged)
+
+    // 视图 (PR 13) — 透传到 QtDataBinder (QML 端切 StackView)
+    Q_PROPERTY(int viewMode READ viewMode NOTIFY viewChanged)
+    Q_PROPERTY(bool isChargeView READ isChargeView NOTIFY viewChanged)
+    Q_PROPERTY(int viewGear READ viewGear NOTIFY viewChanged)
+    Q_PROPERTY(int viewCharge READ viewCharge NOTIFY viewChanged)
+
 public:
     explicit DashboardBackend(QObject* parent = nullptr);
     ~DashboardBackend() override;
@@ -119,6 +129,16 @@ public:
     int warningCount() const;
     bool hasCritical() const;
 
+    // 设置 (PR 13) — 透传到 QtDataBinder
+    int settingsUnits() const;
+    int settingsBrightness() const;
+
+    // 视图 (PR 13) — 透传到 QtDataBinder
+    int  viewMode() const;
+    bool isChargeView() const;
+    int  viewGear() const;
+    int  viewCharge() const;
+
     Q_INVOKABLE QVariant get(const QString& key) const;
     Q_INVOKABLE void set(const QString& key, const QVariant& value);
     Q_INVOKABLE bool indicatorOn(const QString& key) const;
@@ -130,6 +150,10 @@ public:
     // 主题 (PR 7): 透传到 ShmDataSource.m_theme, 下次 16ms tick 自动反映到 QML
     Q_INVOKABLE void setThemeMode(int mode);  // 0=DAY, 1=NIGHT, 2=AUTO
     Q_INVOKABLE void resetTheme();
+    // 设置 (PR 13): 透传到 ShmDataSource.m_settings, 下次 16ms tick 自动反映到 QML
+    Q_INVOKABLE void setSettingsUnits(int units);       // 0=METRIC, 1=IMPERIAL
+    Q_INVOKABLE void setSettingsBrightness(int pct);    // 0-100, 自动 clamp
+    Q_INVOKABLE void resetSettings();
 
 signals:
     void displayDataChanged();
@@ -143,6 +167,8 @@ signals:
     void tripChanged();  // v3 探针延伸: 派生指标变更
     void themeChanged();  // PR 7: 主题模式或 5 色任一变化
     void warningChanged();  // PR 9: warningCount/list/hasCritical 任一变化
+    void settingsChanged();  // PR 13: settingsUnits/brightness 任一变化
+    void viewChanged();      // PR 13: viewMode/gear/charge 任一变化
 
 private:
     std::unique_ptr<IDataSource> m_source;

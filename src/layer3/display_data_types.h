@@ -141,6 +141,23 @@ typedef struct {
     uint8_t              warning_count;   // active_warnings 数组有效长度
     uint8_t              has_critical;    // 派生: 是否有 CRITICAL (priority=0)
     uint8_t              _warning_pad[2];
+
+    // ─── ViewManager (PR 13) ───
+    // 视图模式快照: 由 ShmDataSource 在 onTick() 中从 m_view.snapshot() 复制填入
+    // 0=DRIVE (默认), 1=CHARGE, 2=SETUP — 跟 L2 ViewMode enum 一致
+    // 注: view_pending 是 hysteresis 内部状态, 不暴露给 QML (QML 只关心 current)
+    uint8_t view_current;    // 当前生效视图
+    uint8_t view_gear;       // 当前 gear_status (0=P, 1=R, 2=N, 3=D, 4=S)
+    uint8_t view_charge;     // 当前 charge_status (0=idle, 1+=charging)
+    uint8_t _view_pad;       // 对齐到 4 字节边界
+
+    // ─── SettingsManager (PR 13) ───
+    // 用户偏好 (单位制 + 屏幕亮度), 跨进程配置回退
+    // 由 ShmDataSource 在 onTick() 中从 m_settings.snapshot() 复制填入
+    // 0=METRIC, 1=IMPERIAL — 跟 candash::Units 枚举一一对应
+    uint8_t              settings_units;       // 0=METRIC, 1=IMPERIAL
+    uint8_t              settings_brightness;  // 0-100, 已 clamp
+    uint8_t              _settings_pad[2];     // 对齐到 4 字节边界
 } DisplaySnapshot;
 
 #ifdef __cplusplus

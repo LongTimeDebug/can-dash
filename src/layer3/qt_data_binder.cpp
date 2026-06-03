@@ -133,6 +133,20 @@ void QtDataBinder::onDataUpdated(const DisplaySnapshot& s) {
     if (newWarnCount != m_warningCount)     { m_warningCount = newWarnCount;     warningDirty = true; }
     if (newHasCrit  != m_hasCritical)       { m_hasCritical  = newHasCrit;       warningDirty = true; }
     if (warningDirty) emit warningChanged();
+
+    // ─── 10. 设置 (PR 13) — units + brightness, dirty flag 避免 16ms 重复 emit ───
+    bool settingsDirty = false;
+    if (s.settings_units      != m_settingsUnits)      { m_settingsUnits      = s.settings_units;      settingsDirty = true; }
+    if (s.settings_brightness != m_settingsBrightness) { m_settingsBrightness = s.settings_brightness; settingsDirty = true; }
+    if (settingsDirty) emit settingsChanged();
+
+    // ─── 11. 视图 (PR 13) — viewMode + gear + charge, dirty flag ───
+    // 4 字段共享 viewChanged() 信号, QML 端只切一次 StackView
+    bool viewDirty = false;
+    if (s.view_current != m_viewMode)   { m_viewMode   = s.view_current; viewDirty = true; }
+    if (s.view_gear    != m_viewGear)   { m_viewGear   = s.view_gear;    viewDirty = true; }
+    if (s.view_charge  != m_viewCharge) { m_viewCharge = s.view_charge;  viewDirty = true; }
+    if (viewDirty) emit viewChanged();
 }
 
 void QtDataBinder::onHealthChanged(HealthStatus new_health) {

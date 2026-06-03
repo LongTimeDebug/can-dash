@@ -47,6 +47,10 @@ class DashboardBackend : public QObject {
     Q_PROPERTY(float tripAvgSpeedKmh READ tripAvgSpeedKmh NOTIFY tripChanged)
     Q_PROPERTY(uint tripDurationS READ tripDurationS NOTIFY tripChanged)
     Q_PROPERTY(bool tripIsMoving READ tripIsMoving NOTIFY tripChanged)
+    // PR 4: 能耗 + 续航
+    Q_PROPERTY(float tripEnergyKWh READ tripEnergyKWh NOTIFY tripChanged)
+    Q_PROPERTY(float tripEfficiencyKWh100Km READ tripEfficiencyKWh100Km NOTIFY tripChanged)
+    Q_PROPERTY(float tripRangeConfidencePct READ tripRangeConfidencePct NOTIFY tripChanged)
 
 public:
     explicit DashboardBackend(QObject* parent = nullptr);
@@ -82,6 +86,10 @@ public:
     float tripAvgSpeedKmh() const;
     uint tripDurationS() const;
     bool tripIsMoving() const;
+    // PR 4: 能耗 + 续航
+    float tripEnergyKWh() const;
+    float tripEfficiencyKWh100Km() const;
+    float tripRangeConfidencePct() const;
 
     Q_INVOKABLE QVariant get(const QString& key) const;
     Q_INVOKABLE void set(const QString& key, const QVariant& value);

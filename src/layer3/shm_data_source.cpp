@@ -139,10 +139,16 @@ void ShmDataSource::onTick() {
     //   - 与数据流同步: 数据帧到了才推进小计
     //   - 重放/录像数据可重现: 用帧时间戳而非真实时间
     m_trip.tick(static_cast<uint64_t>(shm.last_commit_ms), next.data.vehicle_speed);
-    next.trip_distance_km   = m_trip.tripDistanceKm();
-    next.trip_avg_speed_kmh = m_trip.tripAvgSpeedKmh();
-    next.trip_duration_s    = m_trip.tripDurationS();
-    next.trip_is_moving     = m_trip.isMoving();
+    m_trip.tickEnergy(static_cast<uint64_t>(shm.last_commit_ms),
+                      next.data.bat_volt, next.data.bat_curr,
+                      next.data.bat_soc, next.data.ev_range);
+    next.trip_distance_km            = m_trip.tripDistanceKm();
+    next.trip_avg_speed_kmh          = m_trip.tripAvgSpeedKmh();
+    next.trip_duration_s             = m_trip.tripDurationS();
+    next.trip_is_moving              = m_trip.isMoving();
+    next.trip_energy_kwh             = m_trip.energyKWh();
+    next.trip_efficiency_kwh100km    = m_trip.efficiencyKWh100Km();
+    next.trip_range_confidence_pct   = m_trip.rangeConfidencePct();
 
     // ─── 5. 推送快照 ───
     m_snapshot = next;

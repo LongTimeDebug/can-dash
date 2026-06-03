@@ -109,6 +109,9 @@ float DashboardBackend::tripDistanceKm() const   { return m_qtBinder ? m_qtBinde
 float DashboardBackend::tripAvgSpeedKmh() const  { return m_qtBinder ? m_qtBinder->tripAvgSpeedKmh()  : 0.0f; }
 uint  DashboardBackend::tripDurationS() const    { return m_qtBinder ? m_qtBinder->tripDurationS()    : 0; }
 bool  DashboardBackend::tripIsMoving() const     { return m_qtBinder && m_qtBinder->tripIsMoving(); }
+float DashboardBackend::tripEnergyKWh() const          { return m_qtBinder ? m_qtBinder->tripEnergyKWh()          : 0.0f; }
+float DashboardBackend::tripEfficiencyKWh100Km() const{ return m_qtBinder ? m_qtBinder->tripEfficiencyKWh100Km(): 0.0f; }
+float DashboardBackend::tripRangeConfidencePct() const{ return m_qtBinder ? m_qtBinder->tripRangeConfidencePct(): 100.0f; }
 
 void DashboardBackend::resetTrip() {
     // 通过具体指针调 (而不是 IDataSource 接口), 避免污染抽象边界

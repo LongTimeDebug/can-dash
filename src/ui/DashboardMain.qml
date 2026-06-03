@@ -291,15 +291,10 @@ ApplicationWindow {
         sourceValue: dashboard.displayData["motor_rpm"] || 0
     }
 
-    // 派生指标面板 — QML 端自算 (左侧，参考实现)
-    DerivedMetrics {
-        x: 1040; y: 595
-        width: 220; height: 85
-    }
-    // 派生指标面板 — C++ TripComputer (右侧，数据流优先)
+    // 派生指标面板 (PR 4: C++ TripComputer 唯一来源, 7 指标 2x3)
     TripPanel {
-        x: 1270; y: 595
-        width: 220; height: 90
+        x: 1040; y: 595
+        width: 320; height: 100
     }
 
     // ─── 报警横幅（z=9999，最高层）───

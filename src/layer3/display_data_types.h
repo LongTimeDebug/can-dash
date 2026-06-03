@@ -100,6 +100,11 @@ typedef struct {
     float            trip_avg_speed_kmh;   // 平均车速 (km/h)
     uint32_t         trip_duration_s;      // 累计行驶时长 (s)
     bool             trip_is_moving;       // 当前是否在行驶 (派生, 不读 is_moving)
+
+    // PR 4: 能耗 + 续航可信度
+    float            trip_energy_kwh;          // 累计放电能量 (kWh)
+    float            trip_efficiency_kwh100km; // 百公里电耗 (kWh/100km), < 0.5km 时为 0
+    float            trip_range_confidence_pct; // 续航可信度 (0-100%), 默认 100
 } DisplaySnapshot;
 
 #ifdef __cplusplus

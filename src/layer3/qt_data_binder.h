@@ -53,6 +53,10 @@ class QtDataBinder : public QObject, public IDataBinder {
     Q_PROPERTY(float tripAvgSpeedKmh READ tripAvgSpeedKmh NOTIFY tripChanged)
     Q_PROPERTY(uint tripDurationS READ tripDurationS NOTIFY tripChanged)
     Q_PROPERTY(bool tripIsMoving READ tripIsMoving NOTIFY tripChanged)
+    // PR 4: 能耗 + 续航
+    Q_PROPERTY(float tripEnergyKWh READ tripEnergyKWh NOTIFY tripChanged)
+    Q_PROPERTY(float tripEfficiencyKWh100Km READ tripEfficiencyKWh100Km NOTIFY tripChanged)
+    Q_PROPERTY(float tripRangeConfidencePct READ tripRangeConfidencePct NOTIFY tripChanged)
 
 public:
     explicit QtDataBinder(QObject* parent = nullptr);
@@ -92,6 +96,9 @@ public:
     float tripAvgSpeedKmh() const  { return m_tripAvgSpeedKmh; }
     uint tripDurationS() const     { return m_tripDurationS; }
     bool tripIsMoving() const      { return m_tripIsMoving; }
+    float tripEnergyKWh() const    { return m_tripEnergyKWh; }
+    float tripEfficiencyKWh100Km() const  { return m_tripEfficiencyKWh100Km; }
+    float tripRangeConfidencePct() const { return m_tripRangeConfidencePct; }
 
     // QML 通用接口
     Q_INVOKABLE QVariant get(const QString& key) const;
@@ -154,6 +161,9 @@ private:
     float m_tripAvgSpeedKmh = 0.0f;
     uint m_tripDurationS = 0;
     bool m_tripIsMoving = false;
+    float m_tripEnergyKWh = 0.0f;
+    float m_tripEfficiencyKWh100Km = 0.0f;
+    float m_tripRangeConfidencePct = 100.0f;
 
     // 缓存：上次推送的时间戳（用于算 dataAgeMs）
     uint64_t m_lastTimestampMs = 0;

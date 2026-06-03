@@ -88,10 +88,13 @@ void QtDataBinder::onDataUpdated(const DisplaySnapshot& s) {
     // ─── 7. 派生指标: TripComputer (v3 探针延伸) ───
     // 用 dirty flag 避免每 16ms 重复 emit (QML 端会反复触发 Binding 求值)
     bool tripDirty = false;
-    if (s.trip_distance_km   != m_tripDistanceKm)   { m_tripDistanceKm   = s.trip_distance_km;   tripDirty = true; }
-    if (s.trip_avg_speed_kmh != m_tripAvgSpeedKmh)  { m_tripAvgSpeedKmh  = s.trip_avg_speed_kmh; tripDirty = true; }
-    if (s.trip_duration_s    != m_tripDurationS)    { m_tripDurationS    = s.trip_duration_s;    tripDirty = true; }
-    if (s.trip_is_moving     != m_tripIsMoving)     { m_tripIsMoving     = s.trip_is_moving;     tripDirty = true; }
+    if (s.trip_distance_km            != m_tripDistanceKm)            { m_tripDistanceKm            = s.trip_distance_km;            tripDirty = true; }
+    if (s.trip_avg_speed_kmh          != m_tripAvgSpeedKmh)          { m_tripAvgSpeedKmh          = s.trip_avg_speed_kmh;          tripDirty = true; }
+    if (s.trip_duration_s             != m_tripDurationS)             { m_tripDurationS             = s.trip_duration_s;             tripDirty = true; }
+    if (s.trip_is_moving              != m_tripIsMoving)              { m_tripIsMoving              = s.trip_is_moving;              tripDirty = true; }
+    if (s.trip_energy_kwh             != m_tripEnergyKWh)             { m_tripEnergyKWh             = s.trip_energy_kwh;             tripDirty = true; }
+    if (s.trip_efficiency_kwh100km    != m_tripEfficiencyKWh100Km)    { m_tripEfficiencyKWh100Km    = s.trip_efficiency_kwh100km;   tripDirty = true; }
+    if (s.trip_range_confidence_pct   != m_tripRangeConfidencePct)   { m_tripRangeConfidencePct    = s.trip_range_confidence_pct;  tripDirty = true; }
     if (tripDirty) emit tripChanged();
 }
 

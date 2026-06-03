@@ -190,6 +190,132 @@ static void test_reset_mid_trip() {
            t.tripDistanceKm());
 }
 
+// PR 4: 能耗 + 续航可信度
+static void test_energy_baseline_and_steady_discharge() {
+    printf("\n[测试12] 能耗: 60V×10A 匀速放电 1min = 0.01 kWh\n");
+    TripComputer t;
+    // 模拟: 60 km/h 跑 1min, 同时 60V × 10A 匀速放电
+    t.tick(1000, 60.0f);
+    t.tickEnergy(1000, 60.0f, 10.0f, 80.0f, 300.0f);
+    // 60V×10A = 600W, 1min = 0.01 kWh (用梯形积分首帧仅记基线)
+    for (int i = 1; i <= 3750; i++) {  // 3750 × 16ms = 60s
+        const uint64_t new_t_ms = 1000 + static_cast<uint64_t>(i) * 16;
+        t.tick(new_t_ms, 60.0f);
+        t.tickEnergy(new_t_ms, 60.0f, 10.0f, 80.0f, 300.0f);
+    }
+    // 0.01 kWh 允许 ±5% 误差 (梯形积分近似)
+    assert(t.energyKWh() > 0.0095f && t.energyKWh() < 0.0105f);
+    printf("  ✓ energy=%.5f kWh (期望 0.01000)\n", t.energyKWh());
+}
+
+static void test_energy_skips_charging_current() {
+    printf("\n[测试13] 能耗: 负电流 (再生制动) 不计入放电\n");
+    TripComputer t;
+    // 60 km/h 跑 1min, 但电流 = -20A (充电)
+    t.tick(1000, 60.0f);
+    t.tickEnergy(1000, 60.0f, -20.0f, 80.0f, 300.0f);
+    for (int i = 1; i <= 3750; i++) {
+        const uint64_t new_t_ms = 1000 + static_cast<uint64_t>(i) * 16;
+        t.tick(new_t_ms, 60.0f);
+        t.tickEnergy(new_t_ms, 60.0f, -20.0f, 80.0f, 300.0f);
+    }
+    // 充电不算放电, 能量应 = 0
+    assert(t.energyKWh() == 0.0f);
+    printf("  ✓ 充电状态下 energy=0 kWh\n");
+}
+
+static void test_efficiency_kwh100km_typical() {
+    printf("\n[测试14] 能耗: 跑 1km 用 0.15kWh → 15 kWh/100km\n");
+    TripComputer t;
+    // 60km/h × 60s = 1km
+    // 想能耗 15 kWh/100km → 0.15 kWh 用 1km
+    // P × 60s / 3600 / 1000 = 0.15 → P = 0.15 × 3600 / 60 × 1000 = 9000W
+    // 60V × 150A = 9000W ✓
+    t.tick(1000, 60.0f);
+    t.tickEnergy(1000, 60.0f, 150.0f, 80.0f, 300.0f);
+    for (int i = 1; i <= 3750; i++) {  // 3750 × 16ms = 60s
+        const uint64_t new_t_ms = 1000 + static_cast<uint64_t>(i) * 16;
+        t.tick(new_t_ms, 60.0f);
+        t.tickEnergy(new_t_ms, 60.0f, 150.0f, 80.0f, 300.0f);
+    }
+    const float dist = t.tripDistanceKm();
+    const float eff = t.efficiencyKWh100Km();
+    printf("  dist=%.3f km, energy=%.4f kWh, eff=%.2f kWh/100km\n", dist, t.energyKWh(), eff);
+    assert(dist > 0.95f && dist < 1.05f);  // 1km ±5%
+    assert(eff > 13.0f && eff < 17.0f);    // 15 ±2
+}
+
+static void test_efficiency_returns_zero_below_min_distance() {
+    printf("\n[测试15] 能耗: 起步 0.3km 不显示 (避免除零噪音)\n");
+    TripComputer t;
+    t.tick(1000, 60.0f);
+    t.tickEnergy(1000, 60.0f, 10.0f, 80.0f, 300.0f);
+    // 只跑 18s ≈ 0.3km
+    for (int i = 1; i <= 1125; i++) {
+        const uint64_t new_t_ms = 1000 + static_cast<uint64_t>(i) * 16;
+        t.tick(new_t_ms, 60.0f);
+        t.tickEnergy(new_t_ms, 60.0f, 10.0f, 80.0f, 300.0f);
+    }
+    // distance < 0.5km, efficiency 应 = 0
+    assert(t.tripDistanceKm() < 0.5f);
+    assert(t.efficiencyKWh100Km() == 0.0f);
+    printf("  ✓ dist=%.3f km < 0.5km, eff=0 (起步噪音过滤生效)\n", t.tripDistanceKm());
+}
+
+static void test_range_confidence_exact_match() {
+    printf("\n[测试16] 续航可信度: 实际 km/% = 显示 km/% → 100%%\n");
+    TripComputer t;
+    // 启动: SOC 100%, 显示续航 500km
+    // 设计: 让 5% SOC 跑 25km, 这样:
+    //   实际 km/% = 25/5 = 5 km/%
+    //   显示 km/% = 500/100 = 5 km/%
+    //   conf = 5/5 × 100 = 100%
+    // 60km/h × 25min = 25km, 25min = 93750 ticks
+    // SOC: 100→95 = 5% 下降, 每 18750 ticks 掉 1%
+    t.tick(1000, 60.0f);
+    t.tickEnergy(1000, 60.0f, 0.0f, 100.0f, 500.0f);
+    for (int i = 1; i <= 93750; i++) {
+        const uint64_t new_t_ms = 1000 + static_cast<uint64_t>(i) * 16;
+        // 93750 ticks 总掉 5%, 系数 = i/18750 → 掉 i/18750 %
+        const float soc = 100.0f - static_cast<float>(i) / 18750.0f;
+        t.tick(new_t_ms, 60.0f);
+        t.tickEnergy(new_t_ms, 60.0f, 0.0f, soc, 500.0f);  // ev_range 固定 baseline
+    }
+    const float conf = t.rangeConfidencePct();
+    const float dist = t.tripDistanceKm();
+    printf("  dist=%.2f km, conf=%.2f%% (期望 ≈ 100%%)\n", dist, conf);
+    // 25min @ 60km/h = 25km, soc_dropped=5
+    // 实际 25/5 = 5, 显示 5, conf = 100
+    assert(dist > 24.9f && dist < 25.1f);
+    assert(conf > 95.0f && conf < 105.0f);
+}
+
+static void test_range_confidence_overestimated() {
+    printf("\n[测试17] 续航可信度: 实际比显示费电 → conf < 100\n");
+    TripComputer t;
+    // 启动: SOC 100%, 显示续航 500km
+    // 设计: 让 10% SOC 跑 25km
+    //   实际 km/% = 25/10 = 2.5 km/%
+    //   显示 km/% = 500/100 = 5 km/%
+    //   conf = 2.5/5 × 100 = 50%
+    // 60km/h × 25min = 25km, 93750 ticks
+    // SOC: 100→90 = 10% 下降, 每 9375 ticks 掉 1%
+    t.tick(1000, 60.0f);
+    t.tickEnergy(1000, 60.0f, 0.0f, 100.0f, 500.0f);
+    for (int i = 1; i <= 93750; i++) {
+        const uint64_t new_t_ms = 1000 + static_cast<uint64_t>(i) * 16;
+        // 93750 ticks 总掉 10%, 系数 = i/9375 → 掉 i/9375 %
+        const float soc = 100.0f - static_cast<float>(i) / 9375.0f;
+        t.tick(new_t_ms, 60.0f);
+        t.tickEnergy(new_t_ms, 60.0f, 0.0f, soc, 500.0f);
+    }
+    const float conf = t.rangeConfidencePct();
+    const float dist = t.tripDistanceKm();
+    printf("  dist=%.2f km, conf=%.2f%% (期望 ≈ 50%%)\n", dist, conf);
+    assert(dist > 24.9f && dist < 25.1f);
+    assert(conf > 45.0f && conf < 55.0f);
+}
+
 int main() {
     printf("=== TripComputer 单元测试 ===\n");
     test_initial_state();
@@ -203,6 +329,12 @@ int main() {
     test_city_driving_pattern();
     test_highway_steady_5min();
     test_reset_mid_trip();
+    test_energy_baseline_and_steady_discharge();
+    test_energy_skips_charging_current();
+    test_efficiency_kwh100km_typical();
+    test_efficiency_returns_zero_below_min_distance();
+    test_range_confidence_exact_match();
+    test_range_confidence_overestimated();
     printf("\n所有测试通过。\n");
     return 0;
 }

@@ -160,6 +160,19 @@ void QtDataBinder::onDataUpdated(const DisplaySnapshot& s) {
     if (s.chime.repeat_count != m_chimeRepeatCount) { m_chimeRepeatCount = s.chime.repeat_count; chimeDirty = true; }
     if (s.chime.volume_pct   != m_chimeVolumePct)   { m_chimeVolumePct   = s.chime.volume_pct;   chimeDirty = true; }
     if (chimeDirty) emit chimeChanged();
+
+    // ─── 13. 自检 (PR 17) — self_test state, 6 字段共享 selfTestChanged() ───
+    // status 是主状态 (0=NOT_READY, 1=OK, 2=WARN, 3=FAIL), 切顶部状态条颜色
+    // 5 计数: critical_received/total + critical_stuck + warn_stuck + out_of_range
+    // 1Hz 节流 tick 后 status 可能变化, dirty flag 保证只有变化才 emit
+    bool selfTestDirty = false;
+    if (s.self_test.status            != m_selfTestStatus)            { m_selfTestStatus            = s.self_test.status;            selfTestDirty = true; }
+    if (s.self_test.critical_received != m_selfTestCriticalReceived) { m_selfTestCriticalReceived = s.self_test.critical_received; selfTestDirty = true; }
+    if (s.self_test.critical_total    != m_selfTestCriticalTotal)    { m_selfTestCriticalTotal    = s.self_test.critical_total;    selfTestDirty = true; }
+    if (s.self_test.critical_stuck    != m_selfTestCriticalStuck)    { m_selfTestCriticalStuck    = s.self_test.critical_stuck;    selfTestDirty = true; }
+    if (s.self_test.warn_stuck        != m_selfTestWarnStuck)        { m_selfTestWarnStuck        = s.self_test.warn_stuck;        selfTestDirty = true; }
+    if (s.self_test.out_of_range      != m_selfTestOutOfRange)      { m_selfTestOutOfRange      = s.self_test.out_of_range;      selfTestDirty = true; }
+    if (selfTestDirty) emit selfTestChanged();
 }
 
 void QtDataBinder::onHealthChanged(HealthStatus new_health) {

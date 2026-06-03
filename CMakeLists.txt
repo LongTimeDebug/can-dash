@@ -311,4 +311,20 @@ if(Qt6_FOUND)
         ${CMAKE_SOURCE_DIR}/src ${LAYER1_DIR} ${LAYER2_DIR} ${LAYER3_DIR})
     target_link_libraries(test_chime_data_flow PRIVATE Qt6::Core)
     add_test(NAME ChimeDataFlowTest COMMAND test_chime_data_flow)
+
+    # SelfTestRuntime 数据流集成 (PR 17): ShmDataSource::onTick 桥接 signal→self_test
+    add_executable(test_self_test_data_flow tests/test_self_test_data_flow.cpp
+        ${LAYER3_DIR}/shm_data_source.cpp
+        ${LAYER3_DIR}/qt_data_binder.cpp
+        ${LAYER3_DIR}/dashboard_backend.cpp
+        ${LAYER1_DIR}/shm/shm_display.cpp
+        ${LAYER2_DIR}/time_util.cpp
+        ${LAYER2_DIR}/language_manager.cpp
+        ${LAYER2_DIR}/self_test_runtime.cpp
+        ${GENERATED_SOURCES})
+    target_include_directories(test_self_test_data_flow PRIVATE
+        ${CMAKE_SOURCE_DIR}/src ${LAYER1_DIR} ${LAYER2_DIR} ${LAYER3_DIR} ${GENERATED_DIR})
+    target_link_libraries(test_self_test_data_flow PRIVATE Qt6::Core)
+    add_dependencies(test_self_test_data_flow run_yaml_to_c)
+    add_test(NAME SelfTestDataFlowTest COMMAND test_self_test_data_flow)
 endif()

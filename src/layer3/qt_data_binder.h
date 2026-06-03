@@ -93,6 +93,17 @@ class QtDataBinder : public QObject, public IDataBinder {
     Q_PROPERTY(int  chimeRepeatCount READ chimeRepeatCount NOTIFY chimeChanged)
     Q_PROPERTY(int  chimeVolumePct READ chimeVolumePct NOTIFY chimeChanged)
 
+    // ─── SelfTestRuntime (PR 17) — 共享 selfTestChanged(), 6 字段同发同更 ───
+    // QML 端按 status 切顶部状态条颜色 (0=NOT_READY灰/1=OK绿/2=WARN黄/3=FAIL红)
+    // 5 计数: critical_received/total + critical_stuck + warn_stuck + out_of_range
+    // 跟 chimeChanged 同模式: 1 个 NOTIFY 推 6 字段, QML 端 Connections 单次回调读全部
+    Q_PROPERTY(int  selfTestStatus READ selfTestStatus NOTIFY selfTestChanged)
+    Q_PROPERTY(int  selfTestCriticalReceived READ selfTestCriticalReceived NOTIFY selfTestChanged)
+    Q_PROPERTY(int  selfTestCriticalTotal READ selfTestCriticalTotal NOTIFY selfTestChanged)
+    Q_PROPERTY(int  selfTestCriticalStuck READ selfTestCriticalStuck NOTIFY selfTestChanged)
+    Q_PROPERTY(int  selfTestWarnStuck READ selfTestWarnStuck NOTIFY selfTestChanged)
+    Q_PROPERTY(int  selfTestOutOfRange READ selfTestOutOfRange NOTIFY selfTestChanged)
+
 public:
     explicit QtDataBinder(QObject* parent = nullptr);
     ~QtDataBinder() override;
@@ -167,6 +178,14 @@ public:
     int  chimeRepeatCount() const   { return static_cast<int>(m_chimeRepeatCount); }
     int  chimeVolumePct() const     { return static_cast<int>(m_chimeVolumePct); }
 
+    // 自检 (PR 17) — 透传到 ShmDataSource.m_self_test
+    int  selfTestStatus() const            { return static_cast<int>(m_selfTestStatus); }
+    int  selfTestCriticalReceived() const  { return static_cast<int>(m_selfTestCriticalReceived); }
+    int  selfTestCriticalTotal() const     { return static_cast<int>(m_selfTestCriticalTotal); }
+    int  selfTestCriticalStuck() const     { return static_cast<int>(m_selfTestCriticalStuck); }
+    int  selfTestWarnStuck() const         { return static_cast<int>(m_selfTestWarnStuck); }
+    int  selfTestOutOfRange() const        { return static_cast<int>(m_selfTestOutOfRange); }
+
     // QML 通用接口
     Q_INVOKABLE QVariant get(const QString& key) const;
     Q_INVOKABLE void set(const QString& key, const QVariant& value);
@@ -190,6 +209,7 @@ signals:
     void settingsChanged();  // PR 13: settingsUnits/brightness 任一变化
     void viewChanged();      // PR 13: viewMode/gear/charge 任一变化
     void chimeChanged();     // PR 14: chimeActive/severity/freq/duration/repeat/volume 任一变化
+    void selfTestChanged();  // PR 17: status + 5 计数任一变化
 
 private:
     QVariantMap buildDisplayData(const DisplayData& d) const;
@@ -272,6 +292,16 @@ private:
     uint16_t m_chimeDurationMs  = 0;
     uint8_t  m_chimeRepeatCount = 0;
     uint8_t  m_chimeVolumePct   = 80;  // 默认 80 (跟 L2 ChimeManager::kDefaultConfig 对齐)
+
+    // 自检 (PR 17) — 由 ShmDataSource 推过来, 缓存到这些字段
+    // status 默认 0=NOT_READY (未初始化, 启动时), 收到所有 critical 后变 1=OK
+    uint8_t  m_selfTestStatus            = 0;  // 0=NOT_READY, 1=OK, 2=WARN, 3=FAIL
+    uint8_t  _m_selfTestPad0[3]         = {0, 0, 0};
+    uint32_t m_selfTestCriticalReceived = 0;
+    uint32_t m_selfTestCriticalTotal    = 0;
+    uint32_t m_selfTestCriticalStuck    = 0;
+    uint32_t m_selfTestWarnStuck        = 0;
+    uint32_t m_selfTestOutOfRange       = 0;
 
     // 缓存：上次推送的时间戳（用于算 dataAgeMs）
     uint64_t m_lastTimestampMs = 0;

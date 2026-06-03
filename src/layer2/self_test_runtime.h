@@ -42,7 +42,8 @@ public:
     SelfTestRuntime();
 
     // 初始化（接收信号表）
-    void init(const SignalDef* signals, int count);
+    // 注意: 参数名避开 Qt MOC 关键字 'signals' (跨 TU 包含 shm_data_source.h 时会爆错)
+    void init(const SignalDef* signal_defs, int count);
 
     // 注册一个信号的更新（由 can_converter 调用）
     void onValueChanged(const char* display_key, float value, uint64_t now_ms);
@@ -59,6 +60,13 @@ public:
 
     // 启动后是否已经收到至少一次所有关键信号
     bool isReady() const { return m_criticalReceivedCount == m_criticalTotal; }
+
+    // 计数 getter (PR 17 数据流接入, ShmDataSource 复制到 DisplaySelfTestState)
+    int criticalReceivedCount() const { return m_criticalReceivedCount; }
+    int criticalTotal() const          { return m_criticalTotal; }
+    int criticalStuckCount() const     { return m_criticalStuckCount; }
+    int warnStuckCount() const         { return m_warnStuckCount; }
+    int outOfRangeCount() const        { return m_outOfRangeCount; }
 
     // 重置（用于冷启动后重置自检状态）
     void reset();

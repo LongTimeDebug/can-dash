@@ -16,6 +16,8 @@
 #include "layer2/view_manager.h"      // 视图模式 (PR 13)
 #include "layer2/settings_manager.h"  // 用户偏好 (PR 13)
 #include "layer2/chime_manager.h"     // 声音提示 (PR 14)
+#include "layer2/self_test_runtime.h" // 显示自检 (PR 17, 信号卡死/越界)
+#include "generated/signal_def.h"     // SIGNAL_TABLE (SelfTestRuntime init 用, PR 17)
 #include <QTimer>
 #include <QObject>
 #include <atomic>
@@ -82,6 +84,16 @@ public:
     void setChimeVolumeForTest(uint8_t pct);  // 0-100, 自动 clamp
     void resetChimeForTest();
 
+    // ─── SelfTestRuntime setter (PR 17, 测试用注入) ───
+    // 非 inline, .cpp 实现 — 避开 "m_self_test 在类内引用未声明" 顺序依赖
+    // 喂信号值 (跟 onTick 自动喂等价, 但允许测试控制时序)
+    void pushSignalValueForTest(const char* display_key, float value, uint64_t now_ms = 0);
+    void tickSelfTestForTest(uint64_t now_ms);
+    void resetSelfTestForTest();
+    // 显式 init (默认 start() 里自动 init, 测试如果想用 mock signal table 可手动调)
+    // 注意: 参数名避开 Qt MOC 关键字 'signals', 改名 signal_defs
+    void initSelfTestForTest(const SignalDef* signal_defs, int count);
+
 private slots:
     void onTick();
 
@@ -127,6 +139,14 @@ private:
     // 防抖上次触发 severity (避免 onTick 16ms 重复触发同 severity)
     // 0=INFO (静默, 不需触发), 1=WARNING, 2=CRITICAL
     uint8_t  m_lastChimeSeverity = 0;
+
+    // SelfTestRuntime (PR 17) — 状态由 ShmDataSource 唯一持有, binder 只读透传
+    // 启动时 init(SIGNAL_TABLE, count) 让 runtime 知道所有监控的信号 (含 critical 白名单)
+    // onTick 里给每个 updated 的 key 调 onValueChanged(), 然后 tick() 推进 status 状态机
+    // tick 1Hz 足够 (避免每次 16ms 都扫描 N 个信号), 用 commit_ms % 1000 控制
+    candash::SelfTestRuntime m_self_test;
+    bool     m_self_test_inited = false;  // SIGNAL_TABLE 还没 ready 时不喂数据
+    uint64_t m_lastSelfTestTickMs = 0;    // 1Hz 节流
 
     // 回调
     UpdateCallback m_updateCb;

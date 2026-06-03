@@ -113,6 +113,22 @@ typedef struct {
     uint64_t end_ms;            // monotonic ms, 播放结束 (跟 L2 ChimeEvent.end_ms 一致)
 } DisplayChimeState;
 
+// ─── SelfTestRuntime (PR 17) ───
+// L3 镜像 L2 SelfTestRuntime 状态 (字段一致, 避免 DisplaySnapshot 跨层 include L2 header)
+// 由 ShmDataSource 在 onTick() 中从 m_self_test 取出填入
+// status: 0=NOT_READY, 1=OK, 2=WARN, 3=FAIL (跟 L2 SelfTestStatus 一致)
+// 6 字段: status + critical 接收/总 + 卡死计数(2) + 越界计数
+// QML 端按 status 切顶部状态条颜色 (灰/绿/黄/红), 跟其他 L3 Manager 共享 themeChanged-style NOTIFY
+typedef struct {
+    uint8_t  status;                  // 0=NOT_READY, 1=OK, 2=WARN, 3=FAIL
+    uint8_t  _self_test_pad[3];       // 对齐到 4 字节边界
+    uint32_t critical_received;       // 已收到 critical 信号数
+    uint32_t critical_total;          // 总 critical 信号数
+    uint32_t critical_stuck;          // critical 信号卡死数 (FAIL 触发)
+    uint32_t warn_stuck;              // 次要信号卡死数 (WARN 触发)
+    uint32_t out_of_range;            // 越界信号数 (≥3 → FAIL, >0 → WARN)
+} DisplaySelfTestState;
+
 // ─── 完整数据快照（DataSource 推送给 Binder 的数据结构）───
 typedef struct {
     DisplayData      data;            // 28 业务字段
@@ -179,6 +195,13 @@ typedef struct {
     // has_active=1 时 QML 端播放对应 frequency/duration/repeat 音效
     // 实际播放需要 QtMultimedia (暂用 QSoundEffect / console beep 占位)
     DisplayChimeState    chime;                 // 单一字段, 避免数组
+
+    // ─── SelfTestRuntime (PR 17) ───
+    // 显示自检状态: 由 ShmDataSource 在 onTick() 中从 m_self_test 复制填入
+    // status 切 QML 顶部状态条颜色 (灰=NOT_READY/绿=OK/黄=WARN/红=FAIL)
+    // 5 计数: critical_received/total + critical_stuck + warn_stuck + out_of_range
+    //   (QML 端详情面板展示 "X/Y critical 已就绪")
+    DisplaySelfTestState self_test;
 } DisplaySnapshot;
 
 #ifdef __cplusplus

@@ -33,8 +33,8 @@ SelfTestRuntime::SelfTestRuntime()
       m_status(SelfTestStatus::NOT_READY),
       m_inited(false) {}
 
-void SelfTestRuntime::init(const SignalDef* signals, int count) {
-    m_signals = signals;
+void SelfTestRuntime::init(const SignalDef* signal_defs, int count) {
+    m_signals = signal_defs;
     m_signalCount = count;
     m_checks = new SignalCheck[count]();
     m_criticalTotal = 0;
@@ -47,12 +47,12 @@ void SelfTestRuntime::init(const SignalDef* signals, int count) {
 
     // 初始化每条信号的检查项
     for (int i = 0; i < count; ++i) {
-        m_checks[i].name = signals[i].name;
+        m_checks[i].name = signal_defs[i].name;
         m_checks[i].last_update_ms = 0;
         m_checks[i].last_value = 0.0f;
         m_checks[i].ever_received = false;
         m_checks[i].in_range = true;
-        m_checks[i].critical = isCriticalSignal(signals[i].name);
+        m_checks[i].critical = isCriticalSignal(signal_defs[i].name);
         if (m_checks[i].critical) ++m_criticalTotal;
     }
 }

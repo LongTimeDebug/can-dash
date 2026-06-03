@@ -49,6 +49,18 @@ bool ShmDataSource::start() {
     m_theme.setTimeBaseline(candash::wall_clock_hour(),
                             candash::now_monotonic_ms());
 
+    // ─── 启动时初始化 SelfTestRuntime (PR 17) ───
+    // 给 runtime 喂 SIGNAL_TABLE (含每条信号的 timeout/min/max) + critical 白名单
+    // (kCritical[] in self_test_runtime.cpp) 让 onValueChanged 知道:
+    //   - 哪些信号 critical (vehicle_speed/bat_volt/bat_soc/motor_rpm/motor_temp)
+    //   - 哪些信号越界阈值 (min_value/max_value, 来自 can_signal_status.yaml)
+    //   - 哪些信号 timeout 阈值 (timeout_ms, 来自 can_signal_status.yaml)
+    // 测试如果想用 mock table 可调 initSelfTestForTest() 覆盖 (覆盖后 m_self_test_inited=true)
+    if (!m_self_test_inited && SIGNAL_TABLE_COUNT > 0) {
+        m_self_test.init(SIGNAL_TABLE, SIGNAL_TABLE_COUNT);
+        m_self_test_inited = true;
+    }
+
     // 启动 16ms 定时器
     m_timer = new QTimer(this);
     connect(m_timer, &QTimer::timeout, this, &ShmDataSource::onTick);
@@ -252,6 +264,45 @@ void ShmDataSource::onTick() {
         }
     }
 
+    // ─── 4.10. SelfTestRuntime (PR 17) ───
+    // 喂每条信号值 (Linear scan 14 信号 × strcmp ~200ns/tick, 16ms 节奏完全够用)
+    // 注意: 喂 shm 协议原始字段 (vehicle_speed / bat_volt 等), 跟 SIGNAL_TABLE
+    // 里的 name 字符串匹配. SelfTestRuntime 内部用 m_checks[i].name strcmp 找到
+    // 对应信号并更新 last_update_ms/last_value/in_range.
+    if (m_self_test_inited) {
+        const uint64_t commit_ms = static_cast<uint64_t>(shm.last_commit_ms);
+        m_self_test.onValueChanged("vehicle_speed", shm.vehicle_speed, commit_ms);
+        m_self_test.onValueChanged("bat_volt",      shm.bat_volt,      commit_ms);
+        m_self_test.onValueChanged("bat_soc",       static_cast<float>(shm.bat_soc), commit_ms);
+        m_self_test.onValueChanged("motor_rpm",     shm.motor_rpm,     commit_ms);
+        m_self_test.onValueChanged("motor_temp",    static_cast<float>(shm.motor_temp), commit_ms);
+        m_self_test.onValueChanged("charge_status", static_cast<float>(shm.charge_status), commit_ms);
+        m_self_test.onValueChanged("engine_rpm",    static_cast<float>(shm.engine_rpm), commit_ms);
+        m_self_test.onValueChanged("engine_fault",  static_cast<float>(shm.engine_fault), commit_ms);
+        m_self_test.onValueChanged("ev_range",      static_cast<float>(shm.ev_range), commit_ms);
+        m_self_test.onValueChanged("fuel_level",    static_cast<float>(shm.fuel_level), commit_ms);
+        m_self_test.onValueChanged("fuel_range",    static_cast<float>(shm.fuel_range), commit_ms);
+        m_self_test.onValueChanged("gear_status",   static_cast<float>(shm.gear_status), commit_ms);
+        m_self_test.onValueChanged("battery_temp",  static_cast<float>(shm.battery_temp), commit_ms);
+
+        // tick 1Hz 节流: 避免 60Hz 都跑 evaluateStatus (虽然 runtime 是 O(N) 但仍省 CPU)
+        // 第一次 tick 强制跑 (m_lastSelfTestTickMs=0)
+        if (m_lastSelfTestTickMs == 0 || commit_ms - m_lastSelfTestTickMs >= 1000) {
+            m_self_test.tick(commit_ms);
+            m_lastSelfTestTickMs = commit_ms;
+        }
+    }
+    // 复制 self_test 状态到 snapshot (L3 镜像 L2 SelfTestRuntime, 字段一一对应)
+    {
+        std::memset(&next.self_test, 0, sizeof(DisplaySelfTestState));
+        next.self_test.status            = static_cast<uint8_t>(m_self_test.status());
+        next.self_test.critical_received = static_cast<uint32_t>(m_self_test.criticalReceivedCount());
+        next.self_test.critical_total    = static_cast<uint32_t>(m_self_test.criticalTotal());
+        next.self_test.critical_stuck    = static_cast<uint32_t>(m_self_test.criticalStuckCount());
+        next.self_test.warn_stuck        = static_cast<uint32_t>(m_self_test.warnStuckCount());
+        next.self_test.out_of_range      = static_cast<uint32_t>(m_self_test.outOfRangeCount());
+    }
+
     // ─── 5. 推送快照 ───
     m_snapshot = next;
     if (m_updateCb) m_updateCb(m_snapshot);
@@ -396,4 +447,21 @@ void ShmDataSource::setChimeVolumeForTest(uint8_t pct) {
 void ShmDataSource::resetChimeForTest() {
     m_chime.reset();
     m_lastChimeSeverity = 0;  // 重置防抖 baseline, 避免 reset 后无法触发新 chime
+}
+
+// ─── SelfTestRuntime setter 实现 (PR 17, 测试用注入) ───
+// 非 inline, 避免 m_self_test 类内引用未声明的顺序依赖
+void ShmDataSource::pushSignalValueForTest(const char* display_key, float value, uint64_t now_ms) {
+    if (!m_self_test_inited) return;
+    if (now_ms == 0) now_ms = candash::now_monotonic_ms();
+    m_self_test.onValueChanged(display_key, value, now_ms);
+}
+void ShmDataSource::tickSelfTestForTest(uint64_t now_ms) { m_self_test.tick(now_ms); }
+void ShmDataSource::resetSelfTestForTest() {
+    m_self_test.reset();
+    m_lastSelfTestTickMs = 0;  // 重置 1Hz 节流, 避免 reset 后 1s 内不评估
+}
+void ShmDataSource::initSelfTestForTest(const SignalDef* signal_defs, int count) {
+    m_self_test.init(signal_defs, count);
+    m_self_test_inited = true;
 }

@@ -40,6 +40,8 @@ void DashboardBackend::init() {
     connect(m_qtBinder, &QtDataBinder::warningChanged, this, &DashboardBackend::warningChanged);  // PR 9
     connect(m_qtBinder, &QtDataBinder::settingsChanged, this, &DashboardBackend::settingsChanged);  // PR 13
     connect(m_qtBinder, &QtDataBinder::viewChanged,     this, &DashboardBackend::viewChanged);      // PR 13
+    connect(m_qtBinder, &QtDataBinder::chimeChanged,    this, &DashboardBackend::chimeChanged);     // PR 14
+    connect(m_qtBinder, &QtDataBinder::selfTestChanged, this, &DashboardBackend::selfTestChanged);  // PR 17
 
     // 业务注入
     m_binder = std::move(binder);
@@ -89,6 +91,8 @@ void DashboardBackend::setDataBinder(std::unique_ptr<IDataBinder> binder) {
         connect(m_qtBinder, &QtDataBinder::tripChanged, this, &DashboardBackend::tripChanged);  // v3 探针延伸
         connect(m_qtBinder, &QtDataBinder::themeChanged, this, &DashboardBackend::themeChanged);  // PR 7
         connect(m_qtBinder, &QtDataBinder::warningChanged, this, &DashboardBackend::warningChanged);  // PR 9
+        connect(m_qtBinder, &QtDataBinder::chimeChanged, this, &DashboardBackend::chimeChanged);  // PR 14
+        connect(m_qtBinder, &QtDataBinder::selfTestChanged, this, &DashboardBackend::selfTestChanged);  // PR 17
     }
     m_binder = std::move(binder);
 }
@@ -132,6 +136,14 @@ uint  DashboardBackend::themeColorCritical() const     { return m_qtBinder ? m_q
 QVariantList DashboardBackend::warningActiveList() const { return m_qtBinder ? m_qtBinder->warningActiveList() : QVariantList(); }
 int   DashboardBackend::warningCount() const              { return m_qtBinder ? m_qtBinder->warningCount()     : 0; }
 bool  DashboardBackend::hasCritical() const               { return m_qtBinder && m_qtBinder->hasCritical(); }
+
+// 自检 getter 透传 (PR 17)
+int   DashboardBackend::selfTestStatus() const            { return m_qtBinder ? m_qtBinder->selfTestStatus()            : 0; }
+int   DashboardBackend::selfTestCriticalReceived() const  { return m_qtBinder ? m_qtBinder->selfTestCriticalReceived()  : 0; }
+int   DashboardBackend::selfTestCriticalTotal() const     { return m_qtBinder ? m_qtBinder->selfTestCriticalTotal()     : 0; }
+int   DashboardBackend::selfTestCriticalStuck() const     { return m_qtBinder ? m_qtBinder->selfTestCriticalStuck()     : 0; }
+int   DashboardBackend::selfTestWarnStuck() const         { return m_qtBinder ? m_qtBinder->selfTestWarnStuck()         : 0; }
+int   DashboardBackend::selfTestOutOfRange() const        { return m_qtBinder ? m_qtBinder->selfTestOutOfRange()        : 0; }
 
 // 设置 getter 透传 (PR 13)
 int   DashboardBackend::settingsUnits() const             { return m_qtBinder ? m_qtBinder->settingsUnits()     : 0; }
@@ -191,6 +203,11 @@ void DashboardBackend::setChimeVolume(int pct) {
 }
 void DashboardBackend::resetChime() {
     if (m_shmSource) m_shmSource->resetChimeForTest();
+}
+
+// 自检 (PR 17) — 透传到 ShmDataSource.m_self_test
+void DashboardBackend::resetSelfTest() {
+    if (m_shmSource) m_shmSource->resetSelfTestForTest();
 }
 
 QVariant DashboardBackend::get(const QString& key) const { return m_qtBinder ? m_qtBinder->get(key) : QVariant(); }

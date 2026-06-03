@@ -1,18 +1,18 @@
 # CAN-Dash 需求索引
 
-最后更新: 2026-06-01
+最后更新: 2026-06-04
 
 ## 统计
 
 | 类别 | 总数 | Approved | Implemented | Verified |
 |------|------|----------|-------------|----------|
-| ALM (报警) | 11 | 10 | 0 | 1 |
+| ALM (报警) | 11 | 9 | 1 | 1 |
 | HYBRID (混动特有) | 6 | 0 | 0 | 1 |
 | IND (指示灯) | 12 | 12 | 0 | 0 |
 | SIG (CAN信号) | 19 | 18 | 0 | 1 |
 | UI (界面) | 5 | 5 | 0 | 0 |
 | SYS (系统) | 5 | 4 | 0 | 0 |
-| **合计** | **58** | **51** | **0** | **3** |
+| **合计** | **58** | **48** | **1** | **3** |
 
 ---
 
@@ -28,7 +28,7 @@
 | REQ-ALM-004 | 电机温度过高报警 | Safety | High | Approved | - |
 | REQ-ALM-005 | 胎压低报警 | Safety, Functional | Critical | Implemented | - |
 | REQ-ALM-006 | 充电中禁止行驶报警 | Safety | High | Approved | - |
-| REQ-ALM-007 | 电机超速报警 | Safety | High | Approved | - |
+| REQ-ALM-007 | 电机超速报警 | Safety | High | Implemented | alarm_rules.yaml:motor_overspeed |
 | REQ-ALM-008 | 电池高温报警 | Safety | High | Approved | - |
 | REQ-ALM-009 | 充电超时报警 | Functional | Medium | Approved | - |
 | REQ-ALM-010 | 充电设备故障报警 | Safety | High | Approved | - |

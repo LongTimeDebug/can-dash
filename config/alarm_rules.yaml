@@ -272,3 +272,20 @@ alarm_rules:
         text_en: "LOW TIRE PRESSURE"
         font_size: 32
         color: "#FF0000"
+
+  # REQ-ALM-007: 电机超速报警 (motor_rpm > 8000 RPM 持续 500ms)
+  - name: "motor_overspeed"
+    display_key: "motor_rpm"
+    condition: "value > 8000"
+    priority: "high"
+    duration_ms: 500
+    actions:
+      - type: "indicator_light"
+        widget: "motor_warn_light"
+        flash: true
+        flash_hz: 4
+      - type: "alarm_text"
+        text_zh: "电机超速！请减速！"
+        text_en: "MOTOR OVERSPEED"
+        font_size: 32
+        color: "#FF4400"

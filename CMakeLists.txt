@@ -176,6 +176,13 @@ target_include_directories(test_vehicle_logic PRIVATE
 add_dependencies(test_vehicle_logic run_yaml_to_c)
 add_test(NAME VehicleLogicTest COMMAND test_vehicle_logic)
 
+# TripComputer: 派生指标 (距离/均速/时长) — 纯 C++, 无 Qt
+add_executable(test_trip_computer tests/test_trip_computer.cpp
+    ${LAYER2_DIR}/trip_computer.cpp)
+target_include_directories(test_trip_computer PRIVATE
+    ${CMAKE_SOURCE_DIR}/src ${LAYER2_DIR})
+add_test(NAME TripComputerTest COMMAND test_trip_computer)
+
 add_executable(test_indicator_runtime tests/test_indicator_runtime.cpp
     ${LAYER2_TEST_SOURCES} ${GENERATED_SOURCES})
 target_include_directories(test_indicator_runtime PRIVATE

@@ -183,6 +183,13 @@ target_include_directories(test_trip_computer PRIVATE
     ${CMAKE_SOURCE_DIR}/src ${LAYER2_DIR})
 add_test(NAME TripComputerTest COMMAND test_trip_computer)
 
+# ThemeManager: DAY/NIGHT/AUTO 颜色策略 — 纯 C++, 无 Qt
+add_executable(test_theme_manager tests/test_theme_manager.cpp
+    ${LAYER2_DIR}/theme_manager.cpp)
+target_include_directories(test_theme_manager PRIVATE
+    ${CMAKE_SOURCE_DIR}/src ${LAYER2_DIR})
+add_test(NAME ThemeManagerTest COMMAND test_theme_manager)
+
 add_executable(test_indicator_runtime tests/test_indicator_runtime.cpp
     ${LAYER2_TEST_SOURCES} ${GENERATED_SOURCES})
 target_include_directories(test_indicator_runtime PRIVATE

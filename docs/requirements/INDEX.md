@@ -69,6 +69,13 @@
 > **PR 25 同步说明**: 接 PR 24 留下的 4 条 ALM (006/008/009/011), 状态 Approved → Implemented 并填实现版本. 这 4 条都是 IND-mode 指示灯联动 (energy_mode==N 联动 N 个 widget 亮/灭), 跟 alarm_runtime 现有 single-key-condition 模型天然兼容, alarm_rules.yaml 早就有对应规则 (ev_mode_active L85 / engine_boost_active L117 / charge_mode_active L136 / charge_fault_alarm L163).
 
 ---
+> **PR 37 同步说明**: 2 处三角矛盾解决 (.md 优先, 跟 SIG-002 决策同形状 — 既然 .md 在, .md 是 source of truth):
+> - **REQ-UI-005**: INDEX 标题 "颜色主题需求" → "多语言配置 (i18n)" (跟 .md 一致), 优先级/类型不变, 实现版本填 `config/i18n/zh_CN.json + en_US.json + src/ui/I18nProvider.qml` (翻译资源规格), 状态保持 Approved (规格文档性质, 跟 UI-001 Implemented 区分清楚 — UI-001 是"运行时切换机制", UI-005 是"翻译资源规格", 互补不重复)
+> - **REQ-SYS-003**: INDEX 标题 "LCD背光超时逻辑" → "跛行模式 (Limp-Home Mode)" (跟 .md 一致), 类型 Functional → Safety, Reliability (跟 .md 一致, ISO 26262 ASIL B), 优先级 Low → High (跟 .md 一致, 安全相关), 实现版本标 "未实现: LimpHomeManager.cpp + config/limp_home.yaml 待创建" (诚实标注, 跟 .md §4 一致), 状态保持 Approved
+> - **决策依据**: PR 30 修 HYBRID/IND 标题错位的延伸 — 当 INDEX 跟 .md 概念冲突时, 既然 .md 是 PR 27/28 验证过的事实标准, INDEX 必须对齐 .md 而不是反过来
+> - **范围限制**: 类别表无变化 (UI 1/4/0, SYS 2/3/0, 合计 7/50/2 不变) / 不动 REQ-ALM-001/002 (无 .md) / 不动 SIG-013/014/017 / 不动 SYS-005 (partial implement 待 PR 33 黑屏白屏检测跟进, 已 PR 32 标注)
+>
+
 > **PR 36 同步说明**: 补 9 个无 .md / stale .md 文件 + 状态同步 (跟 PR 27 新立 REQ-ALM-012 同形状, 0 cpp 改动, 纯 docs sync):
 > - **新建 6 个 .md** (历史欠账): REQ-IND-001/002/003/004/005 (5 个指示灯: 电池警告/电量低/电机温度/Ready-Go/高压) + REQ-SYS-001 (CAN 总线超时检测)
 > - **同步 3 个 stale .md**: REQ-UI-001/002/004 (.md 文件其实 2026-05-31 就存在, 但状态 Approved + 实现版本 "-" 一直没人填 — PR 33/34 跳过决策时未核对实际存在性, 跟 SIG-002 内部不自洽同形状)
@@ -167,7 +174,7 @@
 | REQ-UI-002 | 报警横幅 (AlarmBanner) | UI | High | Implemented | src/ui/AlarmBanner.qml (L1-83) + src/ui/AlarmBannerItem.qml + DashboardMain.qml |
 | REQ-UI-003 | 仪表表盘组件 (GaugeCanvas) | UI | Critical | Implemented | GaugeCanvas QML 组件 — config/display_layout.yaml:speed_gauge (L15) + DashboardMain.qml 20ms Timer 推算 |
 | REQ-UI-004 | 界面布局规格 | UI | High | Implemented | config/display_layout.yaml (L1-74) + src/ui/DashboardMain.qml |
-| REQ-UI-005 | 颜色主题需求 | UI | Medium | Approved | - |
+| REQ-UI-005 | 多语言配置 (i18n) | UI | Medium | Approved | config/i18n/zh_CN.json + en_US.json + src/ui/I18nProvider.qml (资源规格) |
 
 ### SYS (系统) — 5项
 
@@ -175,7 +182,7 @@
 |----|------|------|--------|------|---------|
 | REQ-SYS-001 | CAN总线超时检测 | Reliability | High | Implemented | src/layer2/can_signal_monitor.cpp (L92) + config/can_signal_status.yaml |
 | REQ-SYS-002 | CAN信号平滑与范围检查 | Reliability | High | Approved | - |
-| REQ-SYS-003 | LCD背光超时逻辑 | Functional | Low | Approved | - |
+| REQ-SYS-003 | 跛行模式 (Limp-Home Mode) | Safety, Reliability | High | Approved | - (未实现: LimpHomeManager.cpp + config/limp_home.yaml 待创建) |
 | REQ-SYS-004 | 安全带运行时监控 (SeatBeltRuntime) | Safety | High | Implemented | SeatBeltRuntime (PR 23 L2+test 升级) — config/seat_belt.yaml:trigger.speed_threshold (L57), 监控 5 个座位 (driver L4 / passenger L15 / rear_left L26 / rear_center L36 / rear_right L46) |
 | REQ-SYS-005 | 仪表黑屏/白屏自检 (Display Self-Test) | Safety | High | Implemented | SelfTestRuntime (PR 17, 仅信号自检子功能), QML 黑屏/白屏检测待 PR 33 |
 

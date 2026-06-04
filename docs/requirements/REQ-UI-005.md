@@ -6,7 +6,7 @@
 **优先级**: Medium
 **来源**:   config/i18n/*.json
 **创建日期**: 2026-05-31
-**实现版本**: -
+**实现版本**: config/i18n/zh_CN.json + config/i18n/en_US.json + src/ui/I18nProvider.qml
 
 ---
 
@@ -73,8 +73,8 @@
 |------|-----|
 | 实现文件 | `config/i18n/zh_CN.json`, `config/i18n/en_US.json` |
 | QML组件 | `src/ui/I18nProvider.qml` |
-| 验证日期 | - |
-| 验证结果 | - |
+| 验证日期 | 2026-06-04 |
+| 验证结果 | ctest 18/18 pass (PR 37 同步, 资源规格已落地) |
 
 ---
 
@@ -83,3 +83,4 @@
 | 日期 | 版本 | 变更内容 | 作者 |
 |------|------|---------|------|
 | 2026-05-31 | 1.0 | 初始创建 | requirements-document-agent |
+| 2026-06-04 | 1.1 | INDEX 标题三角矛盾解决: '颜色主题需求' → '多语言配置 (i18n)' (.md 优先, 跟 SIG-002 决策同形状). 实现版本填 i18n 资源 + I18nProvider.qml, 状态保持 Approved (规格文档性质, 跟 UI-001 Implemented 区分清楚). 验证日期/结果填充 (PR 37) | requirements-document-agent |

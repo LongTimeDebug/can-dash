@@ -61,10 +61,12 @@
 
 | 字段 | 值 |
 |------|-----|
-| 实现文件 | `src/core/LimpHomeManager.cpp` |
+| 实现文件 | `src/core/LimpHomeManager.cpp` — **未创建** (.md §4 标"待创建") |
+| 配置 | `config/limp_home.yaml` — **未创建** (.md §4 标"待创建") |
+| 当前实现状态 | **未实现** (PR 37 同步, 三角矛盾解决后保留 .md 诚实标注, 需后续 PR 跟进) |
 | 配置 | `config/limp_home.yaml` (待创建) |
-| 验证日期 | - |
-| 验证结果 | - |
+| 验证日期 | 2026-06-04 (PR 37 同步) |
+| 验证结果 | 未实现: LimpHomeManager.cpp + config/limp_home.yaml 待创建 (跟 .md §4 一致, 需后续 PR 跟进) |
 
 ---
 
@@ -73,3 +75,4 @@
 | 日期 | 版本 | 变更内容 | 作者 |
 |------|------|---------|------|
 | 2026-05-31 | 1.0 | 初始创建 | requirements-document-agent |
+| 2026-06-04 | 1.1 | INDEX 标题三角矛盾解决: 'LCD背光超时逻辑' → '跛行模式 (Limp-Home Mode)' (.md 优先). 类型 Functional → Safety, Reliability (跟 .md 一致, ISO 26262 ASIL B). 优先级 Low → High (安全相关). §4 实现追踪加 '未实现' 诚实标注 (LimpHomeManager.cpp + limp_home.yaml 待创建). 状态保持 Approved (PR 37) | requirements-document-agent |

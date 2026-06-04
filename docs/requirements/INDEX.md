@@ -7,12 +7,21 @@
 | 类别 | 总数 | Approved | Implemented | Verified |
 |------|------|----------|-------------|----------|
 | ALM (报警) | 12 | 0 | 11 | 1 |
-| HYBRID (混动特有) | 6 | 0 | 0 | 1 |
+| HYBRID (混动特有) | 6 | 5 | 1 | 0 |
 | IND (指示灯) | 12 | 12 | 0 | 0 |
-| SIG (CAN信号) | 19 | 18 | 0 | 1 |
+| SIG (CAN信号) | 19 | 17 | 1 | 1 |
 | UI (界面) | 5 | 5 | 0 | 0 |
-| SYS (系统) | 5 | 4 | 0 | 0 |
-| **合计** | **59** | **39** | **11** | **3** |
+| SYS (系统) | 5 | 5 | 0 | 0 |
+| **合计** | **59** | **44** | **13** | **2** |
+
+> **PR 29 同步说明**: 补 2 条 INDEX 实现版本引用 + 修统计表 stale:
+> 1. REQ-HYBRID-001 实现版本 "-" → "TripComputer (PR 4) + alarm_rules.yaml SOC 联动" (.md 元数据早就是 Implemented, INDEX 状态字段也已是 Implemented, 之前实现版本留空, 现补)
+> 2. REQ-SIG-008 状态 Proposed → Implemented (跟 .md 元数据 Implemented + 实现版本 v0.3 commit 2448f83 对齐), 实现版本 "-" → "can_ids.yaml:0x3A0 (L235)"
+>
+> 顺带修统计表 stale: HYBRID 0/0/1 → 5/1/0 (Verified=1 是 bug, 找不到 .md 元数据是 Verified 的条目; 实际 HYBRID-001 Implemented + 002-006 Approved), SIG 18/0/1 → 17/1/1 (008 移到 Implemented, Approved 18→17), SYS 4/0/0 → 5/0/0 (SYS-001 缺 .md 仍 INDEX 列了 5 项), 合计相应调整 (39/11/3 → 44/13/2).
+>
+> **范围限制**: 不动 HYBRID-002~005 (.md 元数据 Proposed, INDEX 标 Approved — 差 1 step, 但 Approved/Proposed 概念相邻, 避免 PR 范围扩大) / 不动 IND/UI 类别表 (跟 .md 一致) / 不动 HYBRID-001 / SIG-008 .md 元数据 (实现版本 v0.3 / - 标法 PR 28 模式不强求统一).
+>
 
 > **PR 28 同步说明**: 批量同步 3 个 .md 元数据头部 + §实现追踪章节, 跟 INDEX 表对齐 — REQ-ALM-003/004/012 状态 Approved → Implemented, 实现版本填 alarm_rules.yaml:rule_name (L<n>), 验证日期/结果填充. REQ-ALM-001/002 无 .md 跳过; REQ-ALM-005 已是 Implemented, v1.0 标法不同不动.
 >
@@ -45,7 +54,7 @@
 
 | ID | 标题 | 类型 | 优先级 | 状态 | 实现版本 |
 |----|------|------|--------|------|---------|
-| REQ-HYBRID-001 | 混动汽车仪表盘特有功能需求基线 | Functional, Safety | High | Implemented | - |
+| REQ-HYBRID-001 | 混动汽车仪表盘特有功能需求基线 | Functional, Safety | High | Implemented | TripComputer (PR 4) + alarm_rules.yaml SOC 联动 |
 | REQ-HYBRID-002 | 充电状态显示 | Functional | Medium | Approved | - |
 | REQ-HYBRID-003 | 能量流动图 | Functional | Medium | Approved | - |
 | REQ-HYBRID-004 | 续航里程预测 | Functional | High | Approved | - |
@@ -80,7 +89,7 @@
 | REQ-SIG-005 | 电机转速信号 (motor_rpm) | Functional | High | Approved | - |
 | REQ-SIG-006 | 电机温度信号 (motor_temp) | Functional | High | Approved | - |
 | REQ-SIG-007 | 电池温度信号 (battery_temp) | Functional, Safety | High | Approved | - |
-| REQ-SIG-008 | 胎压信号 (tire_pressure) | Functional | High | Proposed | - |
+| REQ-SIG-008 | 胎压信号 (tire_pressure) | Functional | High | Implemented | can_ids.yaml:0x3A0 (L235) |
 | REQ-SIG-009 | 驾驶员座椅占用信号 | Functional | Medium | Approved | - |
 | REQ-SIG-010 | 副驾驶员座椅占用信号 | Functional | Medium | Approved | - |
 | REQ-SIG-011 | 驾驶员安全带状态信号 | Safety | High | Approved | - |

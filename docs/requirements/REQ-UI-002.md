@@ -1,12 +1,12 @@
 #REQ-UI-002|报警横幅 (AlarmBanner)
 =========================================
 
-**状态**:   Approved
+**状态**:   Implemented
 **类型**:   UI
 **优先级**: High
 **来源**:   alarm_rules.yaml actions
 **创建日期**: 2026-05-31
-**实现版本**: -
+**实现版本**: src/ui/AlarmBanner.qml (L1-83) + src/ui/AlarmBannerItem.qml + DashboardMain.qml
 
 ---
 
@@ -79,8 +79,8 @@
 |------|-----|
 | QML组件 | `src/ui/AlarmBanner.qml` |
 | 样式 | `src/ui/AlarmBannerStyle.qml` |
-| 验证日期 | - |
-| 验证结果 | - |
+| 验证日期 | 2026-06-04 |
+| 验证结果 | ctest 18/18 pass (PR 36 同步) |
 
 ---
 
@@ -89,3 +89,4 @@
 | 日期 | 版本 | 变更内容 | 作者 |
 |------|------|---------|------|
 | 2026-05-31 | 1.0 | 初始创建 | requirements-document-agent |
+| 2026-06-04 | 1.1 | 状态 Approved → Implemented (PR 36 同步元数据) | requirements-document-agent |

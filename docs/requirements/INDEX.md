@@ -8,11 +8,11 @@
 |------|------|----------|-------------|----------|
 | ALM (报警) | 12 | 0 | 11 | 1 |
 | HYBRID (混动特有) | 6 | 2 | 4 | 0 |
-| IND (指示灯) | 12 | 5 | 7 | 0 |
+| IND (指示灯) | 12 | 0 | 12 | 0 |
 | SIG (CAN信号) | 19 | 2 | 17 | 0 |
-| UI (界面) | 5 | 4 | 1 | 0 |
-| SYS (系统) | 5 | 3 | 2 | 0 |
-| **合计** | **59** | **16** | **41** | **2** |
+| UI (界面) | 5 | 1 | 4 | 0 |
+| SYS (系统) | 5 | 2 | 3 | 0 |
+| **合计** | **59** | **7** | **50** | **2** |
 
 > **PR 34 同步说明**: 跨 SYS + UI 类别 2 条 docs-only 同步 (跟 PR 25/33 docs-only 形状一致, 0 cpp 改动):
 > - REQ-SYS-004 (安全带运行时监控 SeatBeltRuntime): 状态 Approved → Implemented, INDEX 标题"安全带状态运行时监控" → "安全带运行时监控 (SeatBeltRuntime)" (跟 .md 一致, 删冗余"状态" + 补 L2 组件名). 实现版本填 SeatBeltRuntime (PR 23 L2+test 升级) — config/seat_belt.yaml:trigger.speed_threshold (L57), 监控 5 个座位行号 (driver L4 / passenger L15 / rear_left L26 / rear_center L36 / rear_right L46)
@@ -69,6 +69,14 @@
 > **PR 25 同步说明**: 接 PR 24 留下的 4 条 ALM (006/008/009/011), 状态 Approved → Implemented 并填实现版本. 这 4 条都是 IND-mode 指示灯联动 (energy_mode==N 联动 N 个 widget 亮/灭), 跟 alarm_runtime 现有 single-key-condition 模型天然兼容, alarm_rules.yaml 早就有对应规则 (ev_mode_active L85 / engine_boost_active L117 / charge_mode_active L136 / charge_fault_alarm L163).
 
 ---
+> **PR 36 同步说明**: 补 9 个无 .md / stale .md 文件 + 状态同步 (跟 PR 27 新立 REQ-ALM-012 同形状, 0 cpp 改动, 纯 docs sync):
+> - **新建 6 个 .md** (历史欠账): REQ-IND-001/002/003/004/005 (5 个指示灯: 电池警告/电量低/电机温度/Ready-Go/高压) + REQ-SYS-001 (CAN 总线超时检测)
+> - **同步 3 个 stale .md**: REQ-UI-001/002/004 (.md 文件其实 2026-05-31 就存在, 但状态 Approved + 实现版本 "-" 一直没人填 — PR 33/34 跳过决策时未核对实际存在性, 跟 SIG-002 内部不自洽同形状)
+> - 9 个实现版本全部填实际行号 (indicators.yaml: L3/11/18/25/32 / AlarmBanner.qml L1-83 / language_manager.cpp L1-99 / can_signal_monitor.cpp L92 / display_layout.yaml L1-74)
+> - 类别表 stale 修复: IND 5/7/0 → 0/12/0, UI 4/1/0 → 1/4/0, SYS 3/2/0 → 2/3/0, 合计 16/41/2 → 7/50/2
+> - **范围限制 (跟 PR 28/30/33 决策一致)**: REQ-UI-005 (三角矛盾: INDEX 标"颜色主题" / .md 标"i18n" — 跟 UI-001 概念相邻, 但 .md 实际有, 留 PR 37 单独处理) 不动 / REQ-SYS-003 (跛行模式 vs LCD背光) 不动 / REQ-ALM-001/002 (无 .md) 不动 / IND 1-5 之外的 (无 .md) 不动
+>
+
 > **PR 35 同步说明**: SIG 类别 14 条状态 Approved → Implemented (跟 PR 33 IND 6-12、PR 34 SYS-004/UI-003 同形状, 0 cpp 改动, 纯 docs sync):
 > - REQ-SIG-001 ~ REQ-SIG-007 (001-007 电池/电机/制动): 实现版本填 can_ids.yaml (BMS L9/25/31, VCPU L42/50, MCU L61/68) + src/layer3/shm_data_source.cpp 消费行 (L313-L320, PR 7 L3)
 > - REQ-SIG-009 ~ REQ-SIG-012 (座椅/安全带): 实现版本填 can_ids.yaml (SEAT L79, SEAT_P L90, SEAT_BELT L101, SEAT_BELT_P L112) + shm_data_source L321-L324
@@ -114,11 +122,11 @@
 
 | ID | 标题 | 类型 | 优先级 | 状态 | 实现版本 |
 |----|------|------|--------|------|---------|
-| REQ-IND-001 | 电池警告指示灯 | Functional | High | Approved | - |
-| REQ-IND-002 | 电量低指示灯 | Functional | Medium | Approved | - |
-| REQ-IND-003 | 电机温度警告指示灯 | Functional | High | Approved | - |
-| REQ-IND-004 | Ready/Go 指示灯 | Functional | Medium | Approved | - |
-| REQ-IND-005 | 高压指示灯 | Functional | Medium | Approved | - |
+| REQ-IND-001 | 电池警告指示灯 | Functional | High | Implemented | indicators.yaml:bat_warn_light (L3) + src/ui/IndicatorLight.qml |
+| REQ-IND-002 | 电量低指示灯 | Functional | Medium | Implemented | indicators.yaml:soc_warn_light (L11) + src/ui/IndicatorLight.qml |
+| REQ-IND-003 | 电机温度警告指示灯 | Functional | High | Implemented | indicators.yaml:motor_warn_light (L18) + src/ui/IndicatorLight.qml |
+| REQ-IND-004 | Ready/Go 指示灯 | Functional | Medium | Implemented | indicators.yaml:ready_go_light (L25) + src/ui/IndicatorLight.qml |
+| REQ-IND-005 | 高压指示灯 | Functional | Medium | Implemented | indicators.yaml:high_voltage_light (L32) + src/ui/IndicatorLight.qml |
 | REQ-IND-006 | 高压指示灯 | Functional | High | Implemented | indicators.yaml:high_voltage_light (L32) + IndicatorLight.qml |
 | REQ-IND-007 | 纯电模式指示灯 (EV Mode Light) | Functional | Medium | Implemented | indicators.yaml:ev_mode_light (L47) + alarm_rules.yaml:ev_mode_active (L85) |
 | REQ-IND-008 | 混动模式指示灯 (Hybrid Mode Light) | Functional | Medium | Implemented | indicators.yaml:hybrid_mode_light (L55) + alarm_rules.yaml:hybrid_mode_active (L101) |
@@ -155,17 +163,17 @@
 
 | ID | 标题 | 类型 | 优先级 | 状态 | 实现版本 |
 |----|------|------|--------|------|---------|
-| REQ-UI-001 | 多语言切换 (zh_CN / en_US) | UI | Medium | Approved | - |
-| REQ-UI-002 | 报警横幅 (AlarmBanner) | UI | High | Approved | - |
+| REQ-UI-001 | 多语言切换 (zh_CN / en_US) | UI | Medium | Implemented | src/layer2/language_manager.cpp (L1-99) + config/i18n/zh_CN.json + en_US.json |
+| REQ-UI-002 | 报警横幅 (AlarmBanner) | UI | High | Implemented | src/ui/AlarmBanner.qml (L1-83) + src/ui/AlarmBannerItem.qml + DashboardMain.qml |
 | REQ-UI-003 | 仪表表盘组件 (GaugeCanvas) | UI | Critical | Implemented | GaugeCanvas QML 组件 — config/display_layout.yaml:speed_gauge (L15) + DashboardMain.qml 20ms Timer 推算 |
-| REQ-UI-004 | 界面布局规格 | UI | High | Approved | - |
+| REQ-UI-004 | 界面布局规格 | UI | High | Implemented | config/display_layout.yaml (L1-74) + src/ui/DashboardMain.qml |
 | REQ-UI-005 | 颜色主题需求 | UI | Medium | Approved | - |
 
 ### SYS (系统) — 5项
 
 | ID | 标题 | 类型 | 优先级 | 状态 | 实现版本 |
 |----|------|------|--------|------|---------|
-| REQ-SYS-001 | CAN总线超时检测 | Reliability | High | Approved | - |
+| REQ-SYS-001 | CAN总线超时检测 | Reliability | High | Implemented | src/layer2/can_signal_monitor.cpp (L92) + config/can_signal_status.yaml |
 | REQ-SYS-002 | CAN信号平滑与范围检查 | Reliability | High | Approved | - |
 | REQ-SYS-003 | LCD背光超时逻辑 | Functional | Low | Approved | - |
 | REQ-SYS-004 | 安全带运行时监控 (SeatBeltRuntime) | Safety | High | Implemented | SeatBeltRuntime (PR 23 L2+test 升级) — config/seat_belt.yaml:trigger.speed_threshold (L57), 监控 5 个座位 (driver L4 / passenger L15 / rear_left L26 / rear_center L36 / rear_right L46) |

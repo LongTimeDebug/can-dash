@@ -1,6 +1,6 @@
 # CAN-Dash 需求索引
 
-最后更新: 2026-06-05 (PR 52 docs-only 同步, REQ-SYS-002 状态 Approved → Implemented, 多智能体需求包 smoke test)
+最后更新: 2026-06-05 (PR 54 docs-only 同步, 刷新 ## 待办 小节 3 项已完成 — SIG-013/014/017 / REQ-ALM-008 / REQ-SYS-002, 0 cpp 改动)
 
 ## 统计
 
@@ -110,8 +110,8 @@
 > - [x] ~~REQ-SYS-003 跛行模式 LimpHomeManager~~ (LimpHomeManager.cpp + config/limp_home.yaml 待创建, .md §4 标未实现) — **PR 44 已 ship** (PR 43 L2+test 升级 + PR 44 L3 数据流接入, 全链路: L2 LimpHomeRuntime → DisplayLimpHomeState snapshot → Q_PROPERTY limpHomeLevel/Active/MessageZh/MessageEn → QML 透传, 见 PR 44 commit 跟 REQ-SYS-003.md §1 实现版本 + §4 实现追踪)
 >
 > **三角矛盾 / 范围冲突**
-> - [ ] SIG-013/014/017 标题错位 (PR 38 改了状态/类型/优先级, 但 .md 标题没改, 需跟 .md 优先规则同形状处理)
-> - [ ] REQ-ALM-008 bat_temp_high 三角矛盾 (发动机驱动 vs 电池高温 vs bat_temp_high, pitfall #30)
+> - [x] ~~SIG-013/014/017 标题错位~~ — **PR 38 ship** (2026-06-04): INDEX 标题/类型/优先级/状态全部跟 .md 对齐, PR 54 移出待办
+> - [x] ~~REQ-ALM-008 bat_temp_high 三角矛盾~~ — **PR 25 ship** (2026-06-04): INDEX 标题/文件标题/规则名三者一致 (engine_boost_active), 状态 Implemented, PR 54 移出待办
 >
 > **未补 .md (历史欠账)**
 > - [ ] REQ-ALM-001 (电池过压报警) 无 .md — PR 28/30/33 决策不补
@@ -120,7 +120,7 @@
 >
 > **故意保留 Approved (反映文档/未实现性质, 不动)**
 > - [ ] REQ-UI-005 (资源规格, 跟 UI-001 Implemented 区分) — PR 37 决策
-> - [ ] REQ-SYS-002 (信号平滑与范围检测) — PR 38 决策
+> - [x] ~~REQ-SYS-002 (信号平滑与范围检测) — PR 38 决策~~ — **PR 52 ship** (2026-06-05): 状态 Approved → Implemented, 4 文件实现版本填全, PR 54 移出待办
 > - [x] ~~REQ-SYS-003 (跛行模式, 已在三角矛盾段) — 跟代码 PR 重复~~ — **PR 44 移出本段** (L3 接入已 ship, 状态保持 Implemented, 决策无冲突)
 
 ---
@@ -152,6 +152,16 @@
 > - **多智能体协作方式**: `delegate_task` 委派 1 个 ReqAnalyst agent (toolsets=terminal/file/skills, 加载 `can-dash-requirement-pack` skill), agent 19 tool calls / 162s 完成 .md 改 + 真存在验证 + validate 0 error, 输出 deliverable.yaml. owner 收包后: 跑 ctest #15 验证 (3 道验证 ①) / 修测试数差异 / 改 INDEX / commit. **未 commit 之前 agent 不动 git** (按 skill 规则 "不抢 git commit 权")
 > - **范围限制 (跟 PR 32/38 决策一致)**: 不动 UI-005 (资源规格 PR 37) / 不动 SYS-003/004/005 状态 (保持 Implemented) / 不动历史 PR 块 (PR 38 L91/L100 计数是历史时点, 不删不改) / 不动 SIG-013/014/017 标题错位 (留 PR 45+) / 不动 REQ-ALM-001/002 (无 .md) / 不动 QML 集成
 > - 验证: ctest 25/26 pass (新增 #15 CanSignalMonitorTest, 0 回归), validate.py --check-meta 0 error (63 pre-existing QML warnings), 真存在 7 commits in src/layer2/can_signal_monitor.cpp + 1 commit in tests/test_can_signal_monitor.cpp
+>
+
+> **PR 54 同步说明**: 0 cpp 改动, 纯 docs sync (跟 PR 42 加 ## 待办小节同形状 — 刷新已 ship 项, 不新增需求, 跟 PR 52 决策无冲突):
+> - **3 项待办刷新**:
+>   - **[x] ~~SIG-013/014/017 标题错位~~** — PR 38 已 ship (待办是 stale): INDEX 标题 "驾驶员座椅温度信号" / "副驾驶员座椅温度信号" / "剩余充电时间信号" → "副驾安全带状态信号 (passenger_buckled)" / "后排安全带状态信号 (rear_buckle)" / "充电功率信号 (charge_power)" (跟 .md 一致), 类型/优先级同步, 状态 Approved → Implemented. 待办写"PR 38 漏改 .md 标题"是误判 — .md 标题本来正确, 是 INDEX 标题错位, PR 38 改 INDEX 已彻底解决
+>   - **[x] ~~REQ-ALM-008 bat_temp_high 三角矛盾~~** — PR 25 已 ship (待办是 stale): INDEX 标题/文件标题/规则名三者现已一致 (engine_boost_active), 状态 Approved → Implemented. 待办描述的"发动机驱动 vs 电池高温 vs bat_temp_high"三角矛盾, 是 PR 24 之前的历史命名混淆, PR 25 §变更历史 2.0 行明确标注"PR 24 留下的'三角矛盾'本 PR 25 解决"
+>   - **[x] ~~REQ-SYS-002 信号平滑与范围检测 故意保留 Approved~~** — PR 52 已 ship (待办是 stale): PR 52 docs-only 同步把 REQ-SYS-002 状态 Approved → Implemented, 实现版本填 4 文件 (can_signal_monitor.cpp + can_signal_status.yaml + signal_monitor.h + test_can_signal_monitor.cpp 7 gtest 块). 待办"故意保留 Approved"段这条原引自 PR 38 决策, PR 38 时 .md 未实装, 2026-06-05 PR 52 落 .md + 真存在验证后已不符合"故意保留"定义
+> - **决策依据**: 待办小节是 PR 42 (2026-06-04) 写入, 此后 PR 43/44/45/46/47/48/49/50/51/52/53 期间 SIG-013/014/017 (PR 38 ship) / REQ-ALM-008 (PR 25 ship) / REQ-SYS-002 (PR 52 ship) 三项的实际状态已变更, 待办文本未跟. 刷新待办小节 = 修 stale (跟 PR 32 修 PR 24 stale / PR 39 修 PR 31 stale / PR 52 修 PR 38 stale 同形状)
+> - **范围限制 (跟 PR 42 决策一致)**: 不动任何 PR 同步说明块 / 不动统计表 (ALM 0/11/1, HYBRID 0/6/0, IND 0/12/0, SIG 0/19/0, UI 0/5/0, SYS 0/5/0, 合计 0/58/1, 跟 PR 52 保持) / 不动 59 条需求表 (只是"待办"段文本刷新, 跟表无交互) / 不动 ## 待办小节里其他 3 项 (REQ-SYS-005 黑屏/白屏代码 PR / REQ-ALM-001/002 无 .md 故意不补 / REQ-UI-005 故意保留 Approved 资源规格) / 不动 ## 待规划需求 (暂无) / 不动其他章节
+> - 验证: ctest 25/25 pass (0 cpp 改动 0 回归), validate.py --check-meta 0 error, 真存在 4 个 .md 文件标题已对齐 (REQ-SIG-013/014/017 + REQ-ALM-008 + REQ-SYS-002 在 INDEX L228/241/256/300/307 行 + 各自 .md 标题), grep 验证 3 项 stale 文本已从 ## 待办小节删除
 >
 
 > **PR 46 同步说明**: 1 条代码 PR (LimpHomePanel QML 端入口, 配 PR 43 L2+test + PR 44 L3 数据流完成 SYS-003 跛行模式端到端):

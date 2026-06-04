@@ -229,6 +229,13 @@ target_include_directories(test_chime_manager PRIVATE
     ${CMAKE_SOURCE_DIR}/src ${LAYER2_DIR})
 add_test(NAME ChimeManagerTest COMMAND test_chime_manager)
 
+# LanguageManager: 多语言 i18n (zh_CN / en_US 翻译表查询) — 纯 C++, 无 Qt
+add_executable(test_language_manager tests/test_language_manager.cpp
+    ${LAYER2_DIR}/language_manager.cpp)
+target_include_directories(test_language_manager PRIVATE
+    ${CMAKE_SOURCE_DIR}/src ${LAYER2_DIR})
+add_test(NAME LanguageManagerTest COMMAND test_language_manager)
+
 add_executable(test_indicator_runtime tests/test_indicator_runtime.cpp
     ${LAYER2_TEST_SOURCES} ${GENERATED_SOURCES})
 target_include_directories(test_indicator_runtime PRIVATE

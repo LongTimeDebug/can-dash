@@ -1,12 +1,12 @@
 #REQ-SIG-017|充电功率信号 (charge_power)
 =========================================
 
-**状态**:   Approved
+**状态**:   Implemented
 **类型**:   Functional
 **优先级**: Medium
 **来源**:   can_ids.yaml (已有) / REQ-HYBRID-001.md
 **创建日期**: 2026-05-31
-**实现版本**: -
+**实现版本**: can_ids.yaml:L171 + src/layer3/shm_data_source.cpp:L329
 
 ---
 

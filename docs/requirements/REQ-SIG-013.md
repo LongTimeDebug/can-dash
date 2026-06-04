@@ -1,12 +1,12 @@
 #REQ-SIG-013|副驾安全带状态信号 (passenger_buckled)
 =========================================
 
-**状态**:   Approved
+**状态**:   Implemented
 **类型**:   Safety
 **优先级**: High
 **来源**:   can_ids.yaml (已有) / seat_belt.yaml
 **创建日期**: 2026-05-31
-**实现版本**: -
+**实现版本**: can_ids.yaml:L112 + src/layer3/shm_data_source.cpp:L324
 
 ---
 

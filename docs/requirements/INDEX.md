@@ -1,6 +1,6 @@
 # CAN-Dash 需求索引
 
-最后更新: 2026-06-04 (PR 34 同步)
+最后更新: 2026-06-04 (PR 38 同步)
 
 ## 统计
 
@@ -9,10 +9,10 @@
 | ALM (报警) | 12 | 0 | 11 | 1 |
 | HYBRID (混动特有) | 6 | 2 | 4 | 0 |
 | IND (指示灯) | 12 | 0 | 12 | 0 |
-| SIG (CAN信号) | 19 | 2 | 17 | 0 |
+| SIG (CAN信号) | 19 | 0 | 19 | 0 |
 | UI (界面) | 5 | 1 | 4 | 0 |
 | SYS (系统) | 5 | 2 | 3 | 0 |
-| **合计** | **59** | **7** | **50** | **2** |
+| **合计** | **59** | **4** | **53** | **2** |
 
 > **PR 34 同步说明**: 跨 SYS + UI 类别 2 条 docs-only 同步 (跟 PR 25/33 docs-only 形状一致, 0 cpp 改动):
 > - REQ-SYS-004 (安全带运行时监控 SeatBeltRuntime): 状态 Approved → Implemented, INDEX 标题"安全带状态运行时监控" → "安全带运行时监控 (SeatBeltRuntime)" (跟 .md 一致, 删冗余"状态" + 补 L2 组件名). 实现版本填 SeatBeltRuntime (PR 23 L2+test 升级) — config/seat_belt.yaml:trigger.speed_threshold (L57), 监控 5 个座位行号 (driver L4 / passenger L15 / rear_left L26 / rear_center L36 / rear_right L46)
@@ -69,9 +69,20 @@
 > **PR 25 同步说明**: 接 PR 24 留下的 4 条 ALM (006/008/009/011), 状态 Approved → Implemented 并填实现版本. 这 4 条都是 IND-mode 指示灯联动 (energy_mode==N 联动 N 个 widget 亮/灭), 跟 alarm_runtime 现有 single-key-condition 模型天然兼容, alarm_rules.yaml 早就有对应规则 (ev_mode_active L85 / engine_boost_active L117 / charge_mode_active L136 / charge_fault_alarm L163).
 
 ---
+> **PR 38 同步说明**: SIG 类别最后 3 条 Approved → Implemented + INDEX 标题错位修齐 (跟 PR 35 docs-only 形状一致, 0 cpp 改动):
+> - **REQ-SIG-013**: INDEX 标题 "驾驶员座椅温度信号" → "副驾安全带状态信号 (passenger_buckled)" (跟 .md 一致), 类型 Functional → Safety, 优先级 Low → High (跟 .md 一致, 安全相关), 状态 Approved → Implemented, 实现版本填 `can_ids.yaml:L112 (SEAT_BELT_P) + src/layer3/shm_data_source.cpp:L324`
+> - **REQ-SIG-014**: INDEX 标题 "副驾驶员座椅温度信号" → "后排安全带状态信号 (rear_buckle)" (跟 .md 一致), 类型 Functional → Safety, 优先级 Low → High, 状态 Approved → Implemented, 实现版本填 `can_ids.yaml:L123 (SEAT_BELT_R) + src/layer3/shm_data_source.cpp:L325`
+> - **REQ-SIG-017**: INDEX 标题 "剩余充电时间信号" → "充电功率信号 (charge_power)" (跟 .md 一致, 跟 SIG-016 区分清楚 — SIG-016 是 charge_status 充电状态, SIG-017 是 charge_power 充电功率), 优先级 Low → Medium (跟 .md 一致), 状态 Approved → Implemented, 实现版本填 `can_ids.yaml:L171 (CHG_POWER) + src/layer3/shm_data_source.cpp:L329`
+> - 3 个 .md 状态 Approved → Implemented + 实现版本填实际行号 (跟 PR 28/31 修 ALM/HYBRID 元数据同模式)
+> - 类别表 stale 修复: SIG 2/17/0 → 0/19/0 (Approved -2 + Implemented +2 — 实际是 -3/+3, 之前 2/17 本身就有 1 off-by-1 误差, 本 PR 一并修齐), 合计 7/50/2 → 4/53/2
+> - **决策依据**: PR 35/36/37 路线延伸 — 当 INDEX 跟 .md 概念冲突时, INDEX 跟 .md 标题以 .md 为准 (这跟 PR 35 SIG-002 内部不自洽修齐 / PR 30 HYBRID 标题错位 / PR 33 IND 标题错位 / PR 37 UI-005+SYS-003 三角矛盾是同一规则)
+> - **PR 36/37 范围限制更正**: 之前 PR 36/37 说 "SIG-013/014/017 (无 can_ids.yaml 字段)" 留 Approved 是**错误判断** — 实际 can_ids.yaml L112/L123/L171 有对应 passenger_buckled/rear_buckle/charge_power 字段, 代码也已经在 shm_data_source.cpp L324/L325/L329 消费 + QtDataBinder 暴露. 本 PR 38 纠正这个误判
+> - **范围限制 (跟 PR 35 一致)**: 不动 SIG-015/016/019 (3 个相邻 INDEX 标题错位 + .md impl ref 错位, 需要 .md 也修, 范围更大, 留 PR 39) / 不动 SIG-011/012 (.md impl ref 错位 1 off, 不影响 "数据已实现" 判定, 范围更小修另说) / 不动 REQ-ALM-001/002 (无 .md) / 不动 IND 1-5 (历史欠账)
+>
+
 > **PR 37 同步说明**: 2 处三角矛盾解决 (.md 优先, 跟 SIG-002 决策同形状 — 既然 .md 在, .md 是 source of truth):
 > - **REQ-UI-005**: INDEX 标题 "颜色主题需求" → "多语言配置 (i18n)" (跟 .md 一致), 优先级/类型不变, 实现版本填 `config/i18n/zh_CN.json + en_US.json + src/ui/I18nProvider.qml` (翻译资源规格), 状态保持 Approved (规格文档性质, 跟 UI-001 Implemented 区分清楚 — UI-001 是"运行时切换机制", UI-005 是"翻译资源规格", 互补不重复)
-> - **REQ-SYS-003**: INDEX 标题 "LCD背光超时逻辑" → "跛行模式 (Limp-Home Mode)" (跟 .md 一致), 类型 Functional → Safety, Reliability (跟 .md 一致, ISO 26262 ASIL B), 优先级 Low → High (跟 .md 一致, 安全相关), 实现版本标 "未实现: LimpHomeManager.cpp + config/limp_home.yaml 待创建" (诚实标注, 跟 .md §4 一致), 状态保持 Approved
+> - **REQ-SYS-003**: INDEX 标题 "LCD背光超时逻辑" → "跛行模式 (Limp-Home Mode)" (跟 .md 一致), 类型 Functional → Safety, Reliability (跟 .md 一致, ISO 26262 ASIL B), 优先级 Low → High (安全相关), 实现版本标 "未实现: LimpHomeManager.cpp + config/limp_home.yaml 待创建" (诚实标注, 跟 .md §4 一致), 状态保持 Approved
 > - **决策依据**: PR 30 修 HYBRID/IND 标题错位的延伸 — 当 INDEX 跟 .md 概念冲突时, 既然 .md 是 PR 27/28 验证过的事实标准, INDEX 必须对齐 .md 而不是反过来
 > - **范围限制**: 类别表无变化 (UI 1/4/0, SYS 2/3/0, 合计 7/50/2 不变) / 不动 REQ-ALM-001/002 (无 .md) / 不动 SIG-013/014/017 / 不动 SYS-005 (partial implement 待 PR 33 黑屏白屏检测跟进, 已 PR 32 标注)
 >
@@ -158,11 +169,11 @@
 | REQ-SIG-010 | 副驾驶员座椅占用信号 | Functional | Medium | Implemented | can_ids.yaml:L90 + src/layer3/shm_data_source.cpp:L322 |
 | REQ-SIG-011 | 驾驶员安全带状态信号 | Safety | High | Implemented | can_ids.yaml:L101 + src/layer3/shm_data_source.cpp:L323 |
 | REQ-SIG-012 | 副驾驶员安全带状态信号 | Safety | High | Implemented | can_ids.yaml:L112 + src/layer3/shm_data_source.cpp:L324 |
-| REQ-SIG-013 | 驾驶员座椅温度信号 | Functional | Low | Approved | - |
-| REQ-SIG-014 | 副驾驶员座椅温度信号 | Functional | Low | Approved | - |
+| REQ-SIG-013 | 副驾安全带状态信号 (passenger_buckled) | Safety | High | Implemented | can_ids.yaml:L112 + src/layer3/shm_data_source.cpp:L324 |
+| REQ-SIG-014 | 后排安全带状态信号 (rear_buckle) | Safety | High | Implemented | can_ids.yaml:L123 + src/layer3/shm_data_source.cpp:L325 |
 | REQ-SIG-015 | 充电指示灯信号 | Functional | Medium | Implemented | can_ids.yaml:L153 + src/layer3/shm_data_source.cpp:L328 |
 | REQ-SIG-016 | 充电功率信号 | Functional | Medium | Implemented | can_ids.yaml:L171 + src/layer3/shm_data_source.cpp:L329 |
-| REQ-SIG-017 | 剩余充电时间信号 | Functional | Low | Approved | - |
+| REQ-SIG-017 | 充电功率信号 (charge_power) | Functional | Medium | Implemented | can_ids.yaml:L171 + src/layer3/shm_data_source.cpp:L329 |
 | REQ-SIG-018 | 能量模式信号 | Functional | Medium | Implemented | can_ids.yaml:L183 + src/layer3/shm_data_source.cpp:L330 |
 | REQ-SIG-019 | 电池电流信号 (bat_curr) | Functional | High | Implemented | can_ids.yaml:L17 + src/layer3/shm_data_source.cpp:L314 |
 

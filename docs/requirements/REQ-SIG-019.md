@@ -1,12 +1,12 @@
 #REQ-SIG-019|发动机故障标志信号 (engine_fault)
 =========================================
 
-**状态**:   Approved
+**状态**:   Implemented
 **类型**:   Safety
 **优先级**: High
 **来源**:   can_ids.yaml (已有) / alarm_rules.yaml
 **创建日期**: 2026-05-31
-**实现版本**: -
+**实现版本**: can_ids.yaml:L17 + src/layer3/shm_data_source.cpp:L314
 
 ---
 
@@ -74,8 +74,8 @@
 | 实现文件 | `config/can_ids.yaml` |
 | 报警规则 | `config/alarm_rules.yaml` (engine_fault_alarm) |
 | 生成代码 | `src/generated/can_field_def.h` |
-| 验证日期 | - |
-| 验证结果 | - |
+| 验证日期 | 2026-06-04 |
+| 验证结果 | ctest 18/18 pass (PR 35 同步) |
 
 ---
 
@@ -84,3 +84,4 @@
 | 日期 | 版本 | 变更内容 | 作者 |
 |------|------|---------|------|
 | 2026-05-31 | 1.0 | 初始创建 | requirements-document-agent |
+| 2026-06-04 | 1.1 | 状态 Approved → Implemented (PR 35 SIG 批量同步) | requirements-document-agent |

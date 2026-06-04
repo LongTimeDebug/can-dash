@@ -9,10 +9,10 @@
 | ALM (报警) | 12 | 0 | 11 | 1 |
 | HYBRID (混动特有) | 6 | 2 | 4 | 0 |
 | IND (指示灯) | 12 | 5 | 7 | 0 |
-| SIG (CAN信号) | 19 | 17 | 1 | 1 |
+| SIG (CAN信号) | 19 | 2 | 17 | 0 |
 | UI (界面) | 5 | 4 | 1 | 0 |
 | SYS (系统) | 5 | 3 | 2 | 0 |
-| **合计** | **59** | **31** | **26** | **2** |
+| **合计** | **59** | **16** | **41** | **2** |
 
 > **PR 34 同步说明**: 跨 SYS + UI 类别 2 条 docs-only 同步 (跟 PR 25/33 docs-only 形状一致, 0 cpp 改动):
 > - REQ-SYS-004 (安全带运行时监控 SeatBeltRuntime): 状态 Approved → Implemented, INDEX 标题"安全带状态运行时监控" → "安全带运行时监控 (SeatBeltRuntime)" (跟 .md 一致, 删冗余"状态" + 补 L2 组件名). 实现版本填 SeatBeltRuntime (PR 23 L2+test 升级) — config/seat_belt.yaml:trigger.speed_threshold (L57), 监控 5 个座位行号 (driver L4 / passenger L15 / rear_left L26 / rear_center L36 / rear_right L46)
@@ -69,6 +69,16 @@
 > **PR 25 同步说明**: 接 PR 24 留下的 4 条 ALM (006/008/009/011), 状态 Approved → Implemented 并填实现版本. 这 4 条都是 IND-mode 指示灯联动 (energy_mode==N 联动 N 个 widget 亮/灭), 跟 alarm_runtime 现有 single-key-condition 模型天然兼容, alarm_rules.yaml 早就有对应规则 (ev_mode_active L85 / engine_boost_active L117 / charge_mode_active L136 / charge_fault_alarm L163).
 
 ---
+> **PR 35 同步说明**: SIG 类别 14 条状态 Approved → Implemented (跟 PR 33 IND 6-12、PR 34 SYS-004/UI-003 同形状, 0 cpp 改动, 纯 docs sync):
+> - REQ-SIG-001 ~ REQ-SIG-007 (001-007 电池/电机/制动): 实现版本填 can_ids.yaml (BMS L9/25/31, VCPU L42/50, MCU L61/68) + src/layer3/shm_data_source.cpp 消费行 (L313-L320, PR 7 L3)
+> - REQ-SIG-009 ~ REQ-SIG-012 (座椅/安全带): 实现版本填 can_ids.yaml (SEAT L79, SEAT_P L90, SEAT_BELT L101, SEAT_BELT_P L112) + shm_data_source L321-L324
+> - REQ-SIG-015/016/018/019 (充电/能量/电池电流): 实现版本填 can_ids.yaml (CHG_STATUS L153, CHG_POWER L171, ENERGY_MODE L183, BMS L17) + shm_data_source L328-330/314
+> - **修 INDEX stale bug**: SIG-002 表格行之前标 Verified (top stats), 但表格内行又标 Approved — 内部不自洽, 改 Implemented (跟 can_ids.yaml + shm_data_source 实际实现对齐, .md 之前是 Approved 是 stale)
+> - SIG 17/1/1 → 2/17/0, 合计 31/26/2 → 16/41/2
+> - **范围限制**: SIG-008 (已 Implemented) / SIG-013/014/017 (无 can_ids.yaml 字段, 留 Approved, 跟 PR 28/30 跳过欠账条一致) 不动.
+>
+
+
 
 ## 需求列表
 
@@ -121,25 +131,25 @@
 
 | ID | 标题 | 类型 | 优先级 | 状态 | 实现版本 |
 |----|------|------|--------|------|---------|
-| REQ-SIG-001 | 电池电压信号 (bat_volt) | Functional | Critical | Approved | - |
-| REQ-SIG-002 | 电池SOC信号 (bat_soc) | Functional | Critical | Approved | - |
-| REQ-SIG-003 | 车速信号 (vehicle_speed) | Functional | Critical | Approved | - |
-| REQ-SIG-004 | 制动信号 (brake) | Functional | High | Approved | - |
-| REQ-SIG-005 | 电机转速信号 (motor_rpm) | Functional | High | Approved | - |
-| REQ-SIG-006 | 电机温度信号 (motor_temp) | Functional | High | Approved | - |
-| REQ-SIG-007 | 电池温度信号 (battery_temp) | Functional, Safety | High | Approved | - |
+| REQ-SIG-001 | 电池电压信号 (bat_volt) | Functional | Critical | Implemented | can_ids.yaml:L9 + src/layer3/shm_data_source.cpp:L313 |
+| REQ-SIG-002 | 电池SOC信号 (bat_soc) | Functional | Critical | Implemented | can_ids.yaml:L25 + src/layer3/shm_data_source.cpp:L315 |
+| REQ-SIG-003 | 车速信号 (vehicle_speed) | Functional | Critical | Implemented | can_ids.yaml:L42 + src/layer3/shm_data_source.cpp:L317 |
+| REQ-SIG-004 | 制动信号 (brake) | Functional | High | Implemented | can_ids.yaml:L50 + src/layer3/shm_data_source.cpp:L318 |
+| REQ-SIG-005 | 电机转速信号 (motor_rpm) | Functional | High | Implemented | can_ids.yaml:L61 + src/layer3/shm_data_source.cpp:L319 |
+| REQ-SIG-006 | 电机温度信号 (motor_temp) | Functional | High | Implemented | can_ids.yaml:L68 + src/layer3/shm_data_source.cpp:L320 |
+| REQ-SIG-007 | 电池温度信号 (battery_temp) | Functional, Safety | High | Implemented | can_ids.yaml:L31 + src/layer3/shm_data_source.cpp:L316 |
 | REQ-SIG-008 | 胎压信号 (tire_pressure) | Functional | High | Implemented | can_ids.yaml:0x3A0 (L235) |
-| REQ-SIG-009 | 驾驶员座椅占用信号 | Functional | Medium | Approved | - |
-| REQ-SIG-010 | 副驾驶员座椅占用信号 | Functional | Medium | Approved | - |
-| REQ-SIG-011 | 驾驶员安全带状态信号 | Safety | High | Approved | - |
-| REQ-SIG-012 | 副驾驶员安全带状态信号 | Safety | High | Approved | - |
+| REQ-SIG-009 | 驾驶员座椅占用信号 | Functional | Medium | Implemented | can_ids.yaml:L79 + src/layer3/shm_data_source.cpp:L321 |
+| REQ-SIG-010 | 副驾驶员座椅占用信号 | Functional | Medium | Implemented | can_ids.yaml:L90 + src/layer3/shm_data_source.cpp:L322 |
+| REQ-SIG-011 | 驾驶员安全带状态信号 | Safety | High | Implemented | can_ids.yaml:L101 + src/layer3/shm_data_source.cpp:L323 |
+| REQ-SIG-012 | 副驾驶员安全带状态信号 | Safety | High | Implemented | can_ids.yaml:L112 + src/layer3/shm_data_source.cpp:L324 |
 | REQ-SIG-013 | 驾驶员座椅温度信号 | Functional | Low | Approved | - |
 | REQ-SIG-014 | 副驾驶员座椅温度信号 | Functional | Low | Approved | - |
-| REQ-SIG-015 | 充电指示灯信号 | Functional | Medium | Approved | - |
-| REQ-SIG-016 | 充电功率信号 | Functional | Medium | Approved | - |
+| REQ-SIG-015 | 充电指示灯信号 | Functional | Medium | Implemented | can_ids.yaml:L153 + src/layer3/shm_data_source.cpp:L328 |
+| REQ-SIG-016 | 充电功率信号 | Functional | Medium | Implemented | can_ids.yaml:L171 + src/layer3/shm_data_source.cpp:L329 |
 | REQ-SIG-017 | 剩余充电时间信号 | Functional | Low | Approved | - |
-| REQ-SIG-018 | 能量模式信号 | Functional | Medium | Approved | - |
-| REQ-SIG-019 | 电池电流信号 (bat_curr) | Functional | High | Approved | - |
+| REQ-SIG-018 | 能量模式信号 | Functional | Medium | Implemented | can_ids.yaml:L183 + src/layer3/shm_data_source.cpp:L330 |
+| REQ-SIG-019 | 电池电流信号 (bat_curr) | Functional | High | Implemented | can_ids.yaml:L17 + src/layer3/shm_data_source.cpp:L314 |
 
 ### UI (界面) — 5项
 

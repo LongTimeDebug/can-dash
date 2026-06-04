@@ -11,6 +11,7 @@
 | shm read + checksum verify | **1.2 µs** | 0.01% | ✅ |
 | 28 字段 convert (ShmDataSource 等价) | **1.2 µs** | 0.01% | ✅ |
 | AlarmRuntime onValueChanged × 22 keys | **1.5 µs** | 0.01% | ✅ |
+| LimpHomeRuntime tick (2 critical signals) | **<0.1 µs** | <0.001% | ✅ (PR 43 跛行) |
 | **dash tick 总计** | **3.8 µs** | **0.024%** | ✅ 99.98% headroom |
 | shm write + commit (含 msync) | 582 µs | 3.65% | ✅ 一次性落盘 |
 | 端到端 (含 processor 写盘) | 584 µs | 3.65% | ✅ |
@@ -52,12 +53,13 @@ ctest -R PerfBaselineTest -V
 - `std::chrono::steady_clock`（不受 NTP 跳变影响）
 - Release 构建 `-O2 -DNDEBUG`（与 production 一致）
 
-**5 个基准**：
+**6 个基准**：
 1. `shm_write_commit` — 模拟 processor 端写整个结构 + commit（checksum + msync + frame_seq）
 2. `shm_read_verify` — 模拟 dash 端读 + checksum 验证
 3. `alarm_eval_22keys` — 16ms tick 内 EventBus 广播 22 个 key 变化
 4. `shm_to_snapshot` — 28 字段拷贝到 DisplaySnapshot（等价 ShmDataSource::convertSnapshot）
 5. `full_tick` — 端到端：write + read + convert + alarm eval
+6. `limp_home_eval` — LimpHomeRuntime tick 成本 (PR 43): 遍历 `LIMP_HOME_CONFIG.critical_signals` 列表 (2 个) → 逐个 `onValueChanged` + `tick()` + `query()`
 
 ## 性能预算（threshold 政策）
 
@@ -86,9 +88,11 @@ shm 路径:    /tmp (ext4, 模拟"非 tmpfs 的最坏情况")
 [3] alarm_eval_22keys       median=   1472 ns  p99=   2042 ns
 [4] shm_to_snapshot         median=   1189 ns  p99=   1257 ns
 [5] full_tick               median= 584289 ns  p99= 827194 ns
+[6] limp_home_eval          median=     47 ns  p99=     70 ns  (PR 43, 2 critical signals)
 
 dash tick 总计:   3850 ns  (0.024% of 16ms)
 端到端 (含 msync): 584289 ns  (3.65% of 16ms)
+limp_home tick:     47 ns  (0.0003% of 16ms)
 ```
 
 **注**：582 µs 的 shm_write_commit 主要由 `msync(MS_SYNC)` 主导（强制 tmpfs/pagecache 落盘）。

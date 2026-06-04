@@ -1,11 +1,12 @@
 // test_perf_baseline.cpp
 // 性能基线测试 — 测量数据流热路径耗时
 //
-// 测量 4 个关键指标（取中位数 + p99，warmup 100 轮后跑 1000 轮）：
+// 测量 5 个关键指标（取中位数 + p99，warmup 100 轮后跑 1000 轮）：
 //   1. shm write + commit（checksum + msync）— IPC 写
 //   2. shm read + checksum verify — IPC 读
 //   3. AlarmRuntime onValueChanged (28 keys × 17 rules) — 业务规则评估
-//   4. ShmDataSource::onTick（shm 读 + 28 字段 copy + TripComputer tick）— 完整 tick
+//   4. shm read + 28 字段 copy → DisplaySnapshot — ShmDataSource::convertSnapshot 等价
+//   5. LimpHomeRuntime tick (critical signals, timeout 评估) — PR 43 L2 runtime 成本
 //
 // 设计原则：
 //   - 无 Qt 依赖（仅 C++17 + cassert + chrono），保证 CI 跑得起
@@ -33,8 +34,10 @@
 #include <fcntl.h>
 #include "layer1/shm/shm_display.h"
 #include "layer2/alarm_runtime.h"
+#include "layer2/limp_home_runtime.h"
 #include "layer2/time_util.h"
 #include "generated/alarm_rule_def.h"
+#include "generated/limp_home_def.h"
 
 namespace {
 
@@ -309,6 +312,37 @@ void bench_full_tick(std::vector<int64_t>& samples) {
     }
 }
 
+// ─── LimpHomeRuntime tick (PR 43 L2 runtime, critical signals 评估) ──
+// 模拟 16ms tick 周期内: 每个 critical signal 各自 onValueChanged + tick
+// 测量 LimpHomeRuntime 状态机推进成本 (signal-by-signal timeout 评估)
+// 关键信号数量从 LIMP_HOME_CONFIG.critical_signals_count 读取,
+// 跟 config/limp_home.yaml 的 trigger_l1.critical_signals 列表一致
+void bench_limp_home_eval(std::vector<int64_t>& samples) {
+    LimpHomeRuntime limp;
+    limp.init(&LIMP_HOME_CONFIG);
+    const int n = LIMP_HOME_CONFIG.critical_signals_count;
+
+    // 时间起点: 假装现在 t=1000ms (跟 alarm_eval 一致, 用 shm commit 节奏)
+    uint64_t now = 1000;
+    Stopwatch sw;
+    for (int i = 0; i < 1000; i++) {
+        sw.start();
+        // 模拟 can_signal_monitor 推送: 所有 critical signal 都"刚更新"
+        // (1 tick 推进 16ms, 跟 16ms QTimer 节奏对齐)
+        for (int k = 0; k < n; ++k) {
+            limp.onValueChanged(LIMP_HOME_CONFIG.critical_signals[k], now);
+        }
+        // tick 推进: 评估 timeout + L1/L2/L3 状态机
+        limp.tick(now);
+        // query 提取结果 (L3 镜像到 DisplayLimpHomeState 前的 API 调用)
+        LimpHomeQueryResult q;
+        limp.query(q);
+        // 推进 16ms 到下一 tick
+        now += 16;
+        samples.push_back(sw.elapsed_ns());
+    }
+}
+
 // ─── Warmup + 跑 1000 轮 + 统计 ─────────────────────
 template <typename BenchFn>
 BenchStats run_bench(const char* name, BenchFn fn) {
@@ -356,10 +390,14 @@ int main() {
     printf("\n[5] 完整 16ms tick (write + read + convert + 22 alarm keys)\n");
     BenchStats s5 = run_bench("full_tick", bench_full_tick);
 
+    printf("\n[6] LimpHomeRuntime tick (critical signals onValueChanged + tick + query) (PR 43)\n");
+    BenchStats s6 = run_bench("limp_home_eval", bench_limp_home_eval);
+
     // ─── 16ms tick 预算分析 ─────────────────────────
     // 单 dash 端 tick = read + convert + alarm eval
     int64_t dash_tick_ns = s2.median_ns + s4.median_ns + s3.median_ns;
     int64_t full_tick_ns = s5.median_ns;
+    int64_t limp_tick_ns = s6.median_ns;
     double budget_pct = static_cast<double>(dash_tick_ns) / 16000000.0 * 100.0;
 
     printf("\n=== 16ms tick 预算分析 (dash 端, processor 端在另一进程) ===\n");
@@ -374,6 +412,8 @@ int main() {
            dash_tick_ns, budget_pct);
     printf("  端到端 (含 processor)   : %7" PRId64 " ns (%.2f%%)\n",
            full_tick_ns, full_tick_ns / 16000000.0 * 100.0);
+    printf("  limp_home tick           : %7" PRId64 " ns (%.4f%%) (PR 43 L2 runtime)\n",
+           limp_tick_ns, limp_tick_ns / 16000000.0 * 100.0);
     printf("  → headroom for QML/Paint : %.2f%% (= 16ms - %" PRId64 " ns)\n",
            100.0 - budget_pct, dash_tick_ns);
 
@@ -390,10 +430,13 @@ int main() {
     printf("  \"shm_to_snapshot_p99_ns\":      %" PRId64 ",\n", s4.p99_ns);
     printf("  \"full_tick_median_ns\":         %" PRId64 ",\n", s5.median_ns);
     printf("  \"full_tick_p99_ns\":            %" PRId64 ",\n", s5.p99_ns);
+    printf("  \"limp_home_eval_median_ns\":    %" PRId64 ",\n", s6.median_ns);
+    printf("  \"limp_home_eval_p99_ns\":       %" PRId64 ",\n", s6.p99_ns);
     printf("  \"dash_tick_total_ns\":          %" PRId64 ",\n", dash_tick_ns);
     printf("  \"16ms_budget_pct\":             %.3f,\n", budget_pct);
     printf("  \"alarm_rule_count\":            %d,\n", ALARM_RULE_TABLE_COUNT);
-    printf("  \"display_key_count\":           %d\n", DISPLAY_KEY_TABLE_COUNT);
+    printf("  \"display_key_count\":           %d,\n", DISPLAY_KEY_TABLE_COUNT);
+    printf("  \"limp_home_critical_count\":    %d\n", LIMP_HOME_CONFIG.critical_signals_count);
     printf("}\n");
 
     // ─── 软阈值检查：dash tick 预算 < 50% (8ms) ─────

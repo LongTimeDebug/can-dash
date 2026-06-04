@@ -1,18 +1,25 @@
 # CAN-Dash 需求索引
 
-最后更新: 2026-06-04 (PR 38 同步)
+最后更新: 2026-06-04 (PR 39 同步)
 
 ## 统计
 
 | 类别 | 总数 | Approved | Implemented | Verified |
 |------|------|----------|-------------|----------|
 | ALM (报警) | 12 | 0 | 11 | 1 |
-| HYBRID (混动特有) | 6 | 2 | 4 | 0 |
+| HYBRID (混动特有) | 6 | 1 | 5 | 0 |
 | IND (指示灯) | 12 | 0 | 12 | 0 |
 | SIG (CAN信号) | 19 | 0 | 19 | 0 |
 | UI (界面) | 5 | 1 | 4 | 0 |
 | SYS (系统) | 5 | 2 | 3 | 0 |
-| **合计** | **59** | **4** | **53** | **2** |
+| **合计** | **59** | **3** | **54** | **2** |
+
+> **PR 39 同步说明**: HYBRID 类别 1 条 docs-only 同步 (跟 PR 25/33/34/35/36/37/38 docs-only 形状一致, 0 cpp 改动):
+> - **REQ-HYBRID-002** (电池温度显示与报警): 状态 Approved → Implemented, 实现版本补全 QML 显示. **修正 §4 stale 误判**: 之前 .md §4 "QML 显示 | **缺** — 当前仪表盘未在 TripPanel / 主仪表区显示 battery_temp 数值" + INDEX impl ref "显示组件待 PR 32" 是 stale 描述. 实际 src/ui/EnergyFlowDiagram.qml L246-247 早已实现 batteryTemp.toFixed(0) + "°C" 显示 + 颜色阈值 (>50°C 红, >40°C 橙, 其他灰), 数据通路是 ShmDataSource.cpp:L316 (out.data.battery_temp = shm.battery_temp) → QtDataBinder.cpp:L194 (m["battery_temp"] = d.battery_temp) → DashboardMain.qml:L262 (batteryTemp: dashboard.displayData["battery_temp"] || 0 绑定到 EnergyFlowDiagram). 报警侧 bat_temp_high L228 + bat_temp_critical L244 + 指示灯 bat_warn_light L5 联动完整, "显示" 部分"缺"的判断不成立.
+> - 类别表 stale 修复: HYBRID 2/4/0 → 1/5/0, 合计 4/53/2 → 3/54/2
+> - **决策依据**: 跟 PR 35 修 SIG-002 / PR 30 修 HYBRID 标题 / PR 33 修 IND 标题同规则 — 当 .md §4 描述跟实际代码状态不符, .md §4 必须跟代码对齐, 不能反过来 (用户硬要求"诚实标注实现版本").
+> - **范围限制 (跟 PR 38 一致)**: 不动 REQ-HYBRID-006 (充电功率显示, 无 .md 文件 + INDEX impl ref "-", 需要新建 .md 才是另一形状, 留 PR 40 或独立) / 不动 REQ-UI-005 (资源规格, PR 37 决策保持 Approved) / 不动 REQ-SYS-002/003 (PR 37/38 决策保持 Approved) / 不动 SIG-011/012/015/016/019 (impl ref/标题错位, 留 PR 40+)
+>
 
 > **PR 34 同步说明**: 跨 SYS + UI 类别 2 条 docs-only 同步 (跟 PR 25/33 docs-only 形状一致, 0 cpp 改动):
 > - REQ-SYS-004 (安全带运行时监控 SeatBeltRuntime): 状态 Approved → Implemented, INDEX 标题"安全带状态运行时监控" → "安全带运行时监控 (SeatBeltRuntime)" (跟 .md 一致, 删冗余"状态" + 补 L2 组件名). 实现版本填 SeatBeltRuntime (PR 23 L2+test 升级) — config/seat_belt.yaml:trigger.speed_threshold (L57), 监控 5 个座位行号 (driver L4 / passenger L15 / rear_left L26 / rear_center L36 / rear_right L46)
@@ -130,7 +137,7 @@
 | ID | 标题 | 类型 | 优先级 | 状态 | 实现版本 |
 |----|------|------|--------|------|---------|
 | REQ-HYBRID-001 | 混动汽车仪表盘特有功能需求基线 | Functional, Safety | High | Implemented | TripComputer (PR 4) + alarm_rules.yaml SOC 联动 |
-| REQ-HYBRID-002 | 电池温度显示与报警 | Functional, Safety | High | Approved | alarm_rules.yaml:bat_temp_high (L228), 显示组件待 PR 32 |
+| REQ-HYBRID-002 | 电池温度显示与报警 | Functional, Safety | High | Implemented | alarm_rules.yaml:bat_temp_high (L228) + bat_temp_critical (L244) + src/ui/EnergyFlowDiagram.qml:L246-247 (batteryTemp 数值+颜色阈值 50°C红/40°C橙) |
 | REQ-HYBRID-003 | 纯电续航里程显示 (EV Range) | Functional | Medium | Implemented | trip_computer (PR 4) + indicators.yaml:ev_range_warn_light (L94) |
 | REQ-HYBRID-004 | 燃油续航里程显示 (Fuel Range / Fuel Level) | Functional | Medium | Implemented | trip_computer (PR 4) + alarm_rules.yaml:fuel_low (L180) + indicators.yaml:fuel_low_light (L86) |
 | REQ-HYBRID-005 | 档位显示 (Gear Status) | Functional | Medium | Implemented | ViewManager (PR 12) + ShmDataSource (PR 13) gear_status |

@@ -31,7 +31,10 @@ jobs:
       - name: Header guard check
         run: bash tools/lint_header_guards.sh
       - name: Cppcheck (layer1 + layer2 + tests)
-        run: bash tools/run_cppcheck.sh
+        run: |
+          bash tools/run_cppcheck.sh 2>&1 | tee /tmp/cppcheck.log
+          echo "---exit $?---"
+          tail -50 /tmp/cppcheck.log
 
   validate-yaml:
     name: Validate YAML config
@@ -90,4 +93,6 @@ jobs:
           cd build
           # 串行跑：test_shm_display / test_transport 共享 /dev/shm/can_display，
           # 并行会冲突死锁（PR1 历史经验）
-          ctest --output-on-failure -j1
+          ctest --output-on-failure -j1 2>&1 | tee /tmp/ctest.log
+          echo "---ctest exit $?---"
+          tail -30 /tmp/ctest.log

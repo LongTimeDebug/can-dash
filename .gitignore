@@ -2,6 +2,8 @@
 build/
 build-processor/
 build-test/
+build_ci/
+build_ci_test/
 qml/
 *.o
 *.a
@@ -46,4 +48,3 @@ qrc_*.c
 # Temporary
 /tmp/
 *.tmp
-build_ci_test/

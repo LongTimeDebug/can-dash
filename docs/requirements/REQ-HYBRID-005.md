@@ -1,12 +1,12 @@
 #REQ-HYBRID-005|档位显示 (Gear Status)
 =========================================
 
-**状态**:   Proposed
+**状态**:   Implemented
 **类型**:   Functional
 **优先级**: Medium
-**来源**:   REQ-HYBRID-001.md (混动基线)
+**来源**:   REQ-HYBRID-001.md (混动基线) / ViewManager (PR 12) / ShmDataSource (PR 13)
 **创建日期**: 2026-05-31
-**实现版本**: -
+**实现版本**: ViewManager (PR 12) + ShmDataSource (PR 13) gear_status
 
 ---
 
@@ -41,10 +41,12 @@
 
 | 字段 | 值 |
 |------|-----|
-| 实现文件 | `config/can_ids.yaml` (待新增) |
-| 显示组件 | `src/ui/GearDisplay.qml` (待创建) |
-| 验证日期 | - |
-| 验证结果 | - |
+| 实现文件 (档位状态) | `src/layer2/view_manager.cpp` (PR 12, gear_status 字段由 view_manager 持有) |
+| 实现文件 (信号桥接) | `src/layer3/shm_data_source.cpp` (PR 13, onTick 把 shm.gear_status 桥接到 m_view) |
+| 关联 L2 组件 | `src/layer2/view_manager.cpp` (gear_status getter/setter) + `src/layer3/shm_data_source.cpp` (m_view.setGearForTest 注入路径) |
+| QML 显示 | `src/ui/GearDisplay.qml` (具体组件待 PR 32) |
+| 验证日期 | 2026-06-04 |
+| 验证结果 | 18/18 ctest pass (含 ViewManager + ShmDataSource gear_status, PR 31 批量同步元数据) |
 
 ---
 
@@ -53,3 +55,4 @@
 | 日期 | 版本 | 变更内容 | 作者 |
 |------|------|---------|------|
 | 2026-05-31 | 1.0 | 初始创建 | requirements-document-agent |
+| 2026-06-04 | 1.1 | 元数据头部 + §3 实现追踪批量同步: 状态 Proposed → Implemented, 实现版本 + ViewManager (PR 12) + ShmDataSource (PR 13) gear_status, 验证日期/结果填充 (PR 31) | can-dash-jd-autopilot |

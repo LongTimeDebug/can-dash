@@ -1,12 +1,12 @@
 #REQ-HYBRID-003|纯电续航里程显示 (EV Range)
 =========================================
 
-**状态**:   Proposed
+**状态**:   Implemented
 **类型**:   Functional
 **优先级**: Medium
-**来源**:   REQ-HYBRID-001.md (混动基线)
+**来源**:   can_ids.yaml (ev_range) / alarm_rules.yaml (ev_range_low) / indicators.yaml (ev_range_warn_light) / REQ-HYBRID-001.md
 **创建日期**: 2026-05-31
-**实现版本**: -
+**实现版本**: can_ids.yaml:ev_range (L195) + alarm_rules.yaml:ev_range_low (L212) + indicators.yaml:ev_range_warn_light (L94)
 
 ---
 
@@ -47,10 +47,13 @@
 
 | 字段 | 值 |
 |------|-----|
-| 实现文件 | `config/can_ids.yaml` (待新增) |
-| 报警规则 | `config/alarm_rules.yaml` (待新增) |
-| 验证日期 | - |
-| 验证结果 | - |
+| 实现文件 (信号) | `config/can_ids.yaml` (ev_range, L195, uint16, km, 范围 0~300) |
+| 报警规则 | `config/alarm_rules.yaml` (ev_range_low L212: ev_range<5km Medium 提示横幅 + ev_range_warn_light) |
+| 关联 L2 组件 | `src/layer2/alarm_runtime.cpp` (`onValueChanged("ev_range", v)` 触发) / `src/layer2/trip_computer.cpp` (启动时读 baseline_ev_range 算 range_confidence_pct) |
+| 指示灯 | `config/indicators.yaml` (ev_range_warn_light L94) — 由 ev_range_low 规则联动 |
+| QML 关联 | `src/ui/DashboardMain.qml` 间接通过 AlarmBanner / IndicatorLight 反映; 原始 ev_range 数值不在 TripPanel 直接显示, 通过 trip_computer range_confidence 间接体现 |
+| 验证日期 | 2026-06-04 |
+| 验证结果 | 18/18 ctest pass (含 ev_range_low 规则 + trip_computer range_confidence, PR 31 批量同步元数据) |
 
 ---
 
@@ -59,3 +62,4 @@
 | 日期 | 版本 | 变更内容 | 作者 |
 |------|------|---------|------|
 | 2026-05-31 | 1.0 | 初始创建 | requirements-document-agent |
+| 2026-06-04 | 1.1 | 元数据头部 + §3 实现追踪批量同步: 状态 Proposed → Implemented, 实现版本 + can_ids.yaml/alarm_rules.yaml/indicators.yaml 引用, 关联 trip_computer range_confidence (PR 31) | can-dash-jd-autopilot |

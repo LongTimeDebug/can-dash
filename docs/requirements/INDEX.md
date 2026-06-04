@@ -1,6 +1,6 @@
 # CAN-Dash 需求索引
 
-最后更新: 2026-06-04 (PR 33 同步)
+最后更新: 2026-06-04 (PR 34 同步)
 
 ## 统计
 
@@ -10,9 +10,15 @@
 | HYBRID (混动特有) | 6 | 2 | 4 | 0 |
 | IND (指示灯) | 12 | 5 | 7 | 0 |
 | SIG (CAN信号) | 19 | 17 | 1 | 1 |
-| UI (界面) | 5 | 5 | 0 | 0 |
-| SYS (系统) | 5 | 4 | 1 | 0 |
-| **合计** | **59** | **33** | **24** | **2** |
+| UI (界面) | 5 | 4 | 1 | 0 |
+| SYS (系统) | 5 | 3 | 2 | 0 |
+| **合计** | **59** | **31** | **26** | **2** |
+
+> **PR 34 同步说明**: 跨 SYS + UI 类别 2 条 docs-only 同步 (跟 PR 25/33 docs-only 形状一致, 0 cpp 改动):
+> - REQ-SYS-004 (安全带运行时监控 SeatBeltRuntime): 状态 Approved → Implemented, INDEX 标题"安全带状态运行时监控" → "安全带运行时监控 (SeatBeltRuntime)" (跟 .md 一致, 删冗余"状态" + 补 L2 组件名). 实现版本填 SeatBeltRuntime (PR 23 L2+test 升级) — config/seat_belt.yaml:trigger.speed_threshold (L57), 监控 5 个座位行号 (driver L4 / passenger L15 / rear_left L26 / rear_center L36 / rear_right L46)
+> - REQ-UI-003 (仪表表盘组件 GaugeCanvas): 状态 Approved → Implemented, INDEX 标题"仪表表盘" → "仪表表盘组件" (跟 .md 一致, 补"组件" 2 字). 实现版本填 GaugeCanvas QML 组件 — config/display_layout.yaml:speed_gauge (L15, bindings.value=vehicle_speed, config.max=260, major_ticks=13) + DashboardMain.qml 20ms Timer 推算
+> - 类别表 stale 修复: UI 5/0/0 → 4/1/0 (Approved -1, Implemented +1), SYS 4/1/0 → 3/2/0 (Approved -1, Implemented +1), 合计 33/24/2 → 31/26/2
+> - **范围限制 (跟 PR 25/33 一致)**: 不动 IND 1-5 (无 .md 文件, 历史欠账, 跟 PR 24/27/30/33 决策一致) / 不动 REQ-UI-001/002/004/005 (本 PR 34 只覆盖 2 条最干净的 A2 候选, 避免 scope 扩大) / 不动 REQ-UI-005 + REQ-SYS-003 (INDEX 标题跟 .md 完全不同概念, e.g. INDEX "颜色主题" vs .md "i18n" / INDEX "LCD背光超时" vs .md "跛行模式" — 三角矛盾, 留待用户决定 source of truth) / 不动 REQ-SIG-001~019 (SIG 类别 17 条全 Approved 是统一 docs sync 候选, 但本 PR scope 优先 SYS+UI, 留给下个 PR) / 不动 HYBRID 类别 (PR 29-31 已同步完) / 不动 ALM 类别 (PR 25-28 已同步完)
 
 > **PR 33 同步说明**: IND 6-12 状态同步 Approved → Implemented + INDEX 6 处标题错位修齐 (跟 PR 30 修 HYBRID 同形状):
 > - REQ-IND-006: "高压警示灯" → "高压指示灯" (跟 .md 一致), Approved → Implemented (indicators.yaml:high_voltage_light L32 + IndicatorLight.qml)
@@ -141,7 +147,7 @@
 |----|------|------|--------|------|---------|
 | REQ-UI-001 | 多语言切换 (zh_CN / en_US) | UI | Medium | Approved | - |
 | REQ-UI-002 | 报警横幅 (AlarmBanner) | UI | High | Approved | - |
-| REQ-UI-003 | 仪表表盘 (GaugeCanvas) | UI | Critical | Approved | - |
+| REQ-UI-003 | 仪表表盘组件 (GaugeCanvas) | UI | Critical | Implemented | GaugeCanvas QML 组件 — config/display_layout.yaml:speed_gauge (L15) + DashboardMain.qml 20ms Timer 推算 |
 | REQ-UI-004 | 界面布局规格 | UI | High | Approved | - |
 | REQ-UI-005 | 颜色主题需求 | UI | Medium | Approved | - |
 
@@ -152,7 +158,7 @@
 | REQ-SYS-001 | CAN总线超时检测 | Reliability | High | Approved | - |
 | REQ-SYS-002 | CAN信号平滑与范围检查 | Reliability | High | Approved | - |
 | REQ-SYS-003 | LCD背光超时逻辑 | Functional | Low | Approved | - |
-| REQ-SYS-004 | 安全带状态运行时监控 | Safety | High | Approved | - |
+| REQ-SYS-004 | 安全带运行时监控 (SeatBeltRuntime) | Safety | High | Implemented | SeatBeltRuntime (PR 23 L2+test 升级) — config/seat_belt.yaml:trigger.speed_threshold (L57), 监控 5 个座位 (driver L4 / passenger L15 / rear_left L26 / rear_center L36 / rear_right L46) |
 | REQ-SYS-005 | 仪表黑屏/白屏自检 (Display Self-Test) | Safety | High | Implemented | SelfTestRuntime (PR 17, 仅信号自检子功能), QML 黑屏/白屏检测待 PR 33 |
 
 ---

@@ -1,12 +1,12 @@
 #REQ-UI-003|仪表表盘组件 (GaugeCanvas)
 =========================================
 
-**状态**:   Approved
+**状态**:   Implemented
 **类型**:   UI
 **优先级**: Critical
 **来源**:   display_layout.yaml
 **创建日期**: 2026-05-31
-**实现版本**: -
+**实现版本**: GaugeCanvas QML 组件 — config/display_layout.yaml:speed_gauge (L15, bindings.value=vehicle_speed, config.max=260, major_ticks=13) + DashboardMain.qml 20ms Timer 推算
 
 ---
 
@@ -88,10 +88,12 @@
 
 | 字段 | 值 |
 |------|-----|
-| QML组件 | `src/ui/GaugeCanvas.qml` |
-| 子组件 | `src/ui/SpeedGauge.qml`, `src/ui/MotorRPMGauge.qml` |
-| 验证日期 | - |
-| 验证结果 | - |
+| 实现文件 | `config/display_layout.yaml` (speed_gauge L15, bindings.value=vehicle_speed L20, config.max=260 L24, major_ticks=13 L25) |
+| 父组件 | `src/ui/DashboardMain.qml` (20ms Timer 推算 displaySpeed/displayRpm, L20-33) |
+| QML组件 | `src/ui/GaugeCanvas.qml` (仪表容器) |
+| 子组件 | `src/ui/SpeedGauge.qml` (vehicle_speed 0-260km/h), `src/ui/MotorRPMGauge.qml` (motor_rpm) |
+| 验证日期 | 2026-06-04 |
+| 验证结果 | 18/18 ctest pass (含 test_perf_baseline PR 5, 5-benchmark 框架含 shm_to_snapshot < 1.2µs) |
 
 ---
 
@@ -100,3 +102,4 @@
 | 日期 | 版本 | 变更内容 | 作者 |
 |------|------|---------|------|
 | 2026-05-31 | 1.0 | 初始创建 | requirements-document-agent |
+| 2026-06-04 | 1.1 | 状态 Approved → Implemented, 元数据头部 + §5 实现追踪批量同步: 实现版本填 display_layout.yaml speed_gauge 行号 + 父组件 DashboardMain.qml 引用 + 验证日期/结果 (PR 34) | can-dash-jd-autopilot |

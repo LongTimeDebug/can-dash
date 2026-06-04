@@ -1,12 +1,12 @@
 #REQ-SYS-004|安全带运行时监控 (SeatBeltRuntime)
 =========================================
 
-**状态**:   Approved
+**状态**:   Implemented
 **类型**:   Safety
 **优先级**: High
 **来源**:   config/seat_belt.yaml
 **创建日期**: 2026-05-31
-**实现版本**: -
+**实现版本**: SeatBeltRuntime (PR 23 L2+test 升级, 2026-06-04) — config/seat_belt.yaml:trigger.speed_threshold (L57), 监控 5 个座位 (driver L4 / passenger L15 / rear_left L26 / rear_center L36 / rear_right L46)
 
 ---
 
@@ -103,11 +103,12 @@
 
 | 字段 | 值 |
 |------|-----|
-| 实现文件 | `config/seat_belt.yaml` |
-| QML组件 | `src/ui/SeatBeltZone.qml` |
-| 生成代码 | `src/generated/seat_belt_def.h` |
-| 验证日期 | - |
-| 验证结果 | - |
+| 实现文件 | `config/seat_belt.yaml` (driver L4, passenger L15, rear_left L26, rear_center L36, rear_right L46, trigger.speed_threshold L57) |
+| 生成代码 | `src/generated/seat_belt_def.h` (SEAT_BELT_POSITION_TABLE) / `src/generated/seat_belt_table.cpp` |
+| 关联 L2 组件 | `src/layer2/seat_belt_runtime.cpp` (PR 23 L2+test, 280 行测试) |
+| QML组件 | `src/ui/SeatBeltZone.qml` (5 座位图标 + 报警横幅联动) |
+| 验证日期 | 2026-06-04 |
+| 验证结果 | 18/18 ctest pass (含 test_seat_belt_runtime 280 行 / 多 case, PR 23 stub 升级) |
 
 ---
 
@@ -116,3 +117,4 @@
 | 日期 | 版本 | 变更内容 | 作者 |
 |------|------|---------|------|
 | 2026-05-31 | 1.0 | 初始创建 | requirements-document-agent |
+| 2026-06-04 | 1.1 | 状态 Approved → Implemented, 元数据头部 + §6 实现追踪批量同步: 实现版本填 seat_belt.yaml 行号 + L2 组件 (PR 23) + 验证日期/结果 (PR 34) | can-dash-jd-autopilot |

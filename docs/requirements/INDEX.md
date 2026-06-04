@@ -7,12 +7,22 @@
 | 类别 | 总数 | Approved | Implemented | Verified |
 |------|------|----------|-------------|----------|
 | ALM (报警) | 12 | 0 | 11 | 1 |
-| HYBRID (混动特有) | 6 | 5 | 1 | 0 |
+| HYBRID (混动特有) | 6 | 2 | 4 | 0 |
 | IND (指示灯) | 12 | 12 | 0 | 0 |
 | SIG (CAN信号) | 19 | 17 | 1 | 1 |
 | UI (界面) | 5 | 5 | 0 | 0 |
 | SYS (系统) | 5 | 5 | 0 | 0 |
-| **合计** | **59** | **44** | **13** | **2** |
+| **合计** | **59** | **41** | **16** | **2** |
+
+> **PR 30 同步说明**: HYBRID 4 处标题错位修齐 + 状态对齐实际实现 (跟 PR 24 修 ALM 同形状):
+> - REQ-HYBRID-002: \"充电状态显示\" → \"电池温度显示与报警\" (跟 .md 一致), 留 Approved (alarm 有, 显示组件缺)
+> - REQ-HYBRID-003: \"能量流动图\" → \"纯电续航里程显示 (EV Range)\" (跟 .md 一致), Approved → Implemented (trip_computer PR 4 + ev_range_warn_light)
+> - REQ-HYBRID-004: \"续航里程预测\" → \"燃油续航里程显示 (Fuel Range / Fuel Level)\" (跟 .md 一致), Approved → Implemented (trip_computer + fuel_low + fuel_low_light)
+> - REQ-HYBRID-005: \"驾驶模式切换\" → \"档位显示 (Gear Status)\" (跟 .md 一致), Approved → Implemented (ViewManager PR 12 + ShmDataSource PR 13)
+> - 合计 5/1/0 → 2/4/0 (HYBRID 类别), 整体 44/13/2 → 41/16/2
+>
+> **范围限制**: 不动 4 个 .md 元数据头部 + §实现追踪章节 (留 PR 31 批量同步, 跟 PR 28 模式相同) / 不动 HYBRID-006 充电功率显示 (无 .md 文件, 历史欠账) / 不动 IND/SIG/UI/SYS 类别表.
+>
 
 > **PR 29 同步说明**: 补 2 条 INDEX 实现版本引用 + 修统计表 stale:
 > 1. REQ-HYBRID-001 实现版本 "-" → "TripComputer (PR 4) + alarm_rules.yaml SOC 联动" (.md 元数据早就是 Implemented, INDEX 状态字段也已是 Implemented, 之前实现版本留空, 现补)
@@ -55,10 +65,10 @@
 | ID | 标题 | 类型 | 优先级 | 状态 | 实现版本 |
 |----|------|------|--------|------|---------|
 | REQ-HYBRID-001 | 混动汽车仪表盘特有功能需求基线 | Functional, Safety | High | Implemented | TripComputer (PR 4) + alarm_rules.yaml SOC 联动 |
-| REQ-HYBRID-002 | 充电状态显示 | Functional | Medium | Approved | - |
-| REQ-HYBRID-003 | 能量流动图 | Functional | Medium | Approved | - |
-| REQ-HYBRID-004 | 续航里程预测 | Functional | High | Approved | - |
-| REQ-HYBRID-005 | 驾驶模式切换 | Functional | High | Approved | - |
+| REQ-HYBRID-002 | 电池温度显示与报警 | Functional, Safety | High | Approved | alarm_rules.yaml:bat_temp_high (L228), 显示组件待 PR 32 |
+| REQ-HYBRID-003 | 纯电续航里程显示 (EV Range) | Functional | Medium | Implemented | trip_computer (PR 4) + indicators.yaml:ev_range_warn_light (L94) |
+| REQ-HYBRID-004 | 燃油续航里程显示 (Fuel Range / Fuel Level) | Functional | Medium | Implemented | trip_computer (PR 4) + alarm_rules.yaml:fuel_low (L180) + indicators.yaml:fuel_low_light (L86) |
+| REQ-HYBRID-005 | 档位显示 (Gear Status) | Functional | Medium | Implemented | ViewManager (PR 12) + ShmDataSource (PR 13) gear_status |
 | REQ-HYBRID-006 | 充电功率显示 | Functional | Medium | Approved | - |
 
 ### IND (指示灯) — 12项

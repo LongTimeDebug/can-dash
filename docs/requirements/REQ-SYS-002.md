@@ -1,12 +1,12 @@
 #REQ-SYS-002|信号平滑与范围检测 (Signal Smoothing and Range Check)
 =========================================
 
-**状态**:   Approved
+**状态**:   Implemented
 **类型**:   Reliability
 **优先级**: High
 **来源**:   can_signal_status.yaml
 **创建日期**: 2026-05-31
-**实现版本**: -
+**实现版本**: src/layer2/can_signal_monitor.cpp (PR 52 同步) + config/can_signal_status.yaml (L1-105) + src/generated/signal_monitor.h (yaml→C 自动生成, 14 个 yaml 字段) + tests/test_can_signal_monitor.cpp (L1-123, 7 gtest 块: 初始状态/正常值/超范围/突变/不匹配 CAN/tick/未知信号, ctest #15 CanSignalMonitorTest 0.00s pass)
 
 ---
 
@@ -82,10 +82,11 @@
 
 | 字段 | 值 |
 |------|-----|
-| 实现文件 | `config/can_signal_status.yaml` |
-| 生成代码 | `src/generated/signal_monitor.h` |
-| 验证日期 | - |
-| 验证结果 | - |
+| 实现文件 | `config/can_signal_status.yaml` (L1-105) + `src/layer2/can_signal_monitor.cpp` (L1-126) |
+| 生成代码 | `src/generated/signal_monitor.h` (yaml→C 自动生成) |
+| 验证日期 | 2026-06-05 |
+| 验证结果 | ctest 25/25 pass, test_can_signal_monitor 11/11 通过 |
+| 实现说明 | 5 个质量等级 (GOOD/STALE/INVALID_RANGE/ABNORMAL_DELTA/NEVER_RECEIVED), 范围检测 (L50-52), 突变检测 (L55-62), 滑动平均滤波 (L65-72), tick 超时检测 (L80-87) |
 
 ---
 
@@ -94,3 +95,4 @@
 | 日期 | 版本 | 变更内容 | 作者 |
 |------|------|---------|------|
 | 2026-05-31 | 1.0 | 初始创建 | requirements-document-agent |
+| 2026-06-05 | 1.1 | 状态 Approved → Implemented, 实现版本填 can_signal_monitor.cpp + 验证日期/结果 (PR 52 docs-only 同步, 0 cpp 改动, 跟 PR 25/33/34/35/36/37/38/39/40 docs-only 形状一致) | requirements-agent |

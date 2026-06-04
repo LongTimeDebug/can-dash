@@ -1,6 +1,6 @@
 # CAN-Dash 需求索引
 
-最后更新: 2026-06-04 (PR 46 同步, LimpHomePanel QML 端入口, SYS-003 跛行模式端到端完成)
+最后更新: 2026-06-05 (PR 52 docs-only 同步, REQ-SYS-002 状态 Approved → Implemented, 多智能体需求包 smoke test)
 
 ## 统计
 
@@ -143,6 +143,15 @@
 >   - L2 跟 L3 字段镜像: DisplayLimpHomeState 跟 LimpHomeQueryResult 一一对应 (level/active/messageZh/messageEn), 避免 DisplaySnapshot 跨层 include L2 header
 > - **范围限制 (跟 PR 43 一致)**: 不动 UI-005 (资源规格 PR 37) / 不动 SYS-002 / 不动 REQ-ALM-001/002 (无 .md) / 不动 SYS-005 黑屏/白屏检测 (留 PR 46+) / 不动 SIG-013/014/017 标题错位 (留 PR 45+) / 不动 QML 端 LimpHomePanel 组件 (Q_PROPERTY 已暴露, QML 弹警告条 + 文案留 PR 45)
 > - 验证: ctest 23/24 pass (L1+L2 零回归; ShmDataSourceTest 5 个 pre-existing theme manager 时间相关失败 + DashboardBackendTest 1 个 indicatorOn pre-existing, 均不属本 PR 引入)
+>
+> **PR 52 同步说明**: 1 条 docs-only 同步 (跟 PR 25/33/34/35/36/37/38/39/40 docs-only 形状一致, 0 cpp 改动), **多智能体模式 smoke test — 需求包 (ReqAnalyst) 委派 1 个 agent 干 .md 同步**:
+> - **REQ-SYS-002** (CAN 信号平滑与范围检查) **状态 Approved → Implemented** (PR 32/38 决策保持 Approved, PR 50 ship `test_can_signal_monitor.cpp` 7 gtest 块后实际已 Implemented, 推迟到 PR 52 docs-only 同步):
+>   - `docs/requirements/REQ-SYS-002.md` (扩展) — 状态 Approved → Implemented, 填 `**实现版本**` (4 文件: src/layer2/can_signal_monitor.cpp + config/can_signal_status.yaml + src/generated/signal_monitor.h + tests/test_can_signal_monitor.cpp 7 gtest 块 ctest #15), §实现追踪 表格更新 (实现文件/生成代码/验证日期 2026-06-05/验证结果 ctest 25/26 pass), §变更历史 加 1.1 行 (作者=requirements-agent)
+>   - `docs/requirements/INDEX.md` (扩展) — L301 真状态行 `| REQ-SYS-002 | ... | Approved | - |` → `| Implemented | ... |` + 填实现版本引用 (4 文件同 .md)
+> - **关键发现 (agent 标注 + owner 验证)**: .md 写 `11 测试通过` 实际只 7 gtest 块 (测试1-7: 初始状态/正常值/超范围/突变/不匹配 CAN/tick/未知信号), agent 标 `bug: .md 数不准` 不自行改; owner 跑 ctest `#15 CanSignalMonitorTest 0.00s pass` 验证后改 .md 真数 7
+> - **多智能体协作方式**: `delegate_task` 委派 1 个 ReqAnalyst agent (toolsets=terminal/file/skills, 加载 `can-dash-requirement-pack` skill), agent 19 tool calls / 162s 完成 .md 改 + 真存在验证 + validate 0 error, 输出 deliverable.yaml. owner 收包后: 跑 ctest #15 验证 (3 道验证 ①) / 修测试数差异 / 改 INDEX / commit. **未 commit 之前 agent 不动 git** (按 skill 规则 "不抢 git commit 权")
+> - **范围限制 (跟 PR 32/38 决策一致)**: 不动 UI-005 (资源规格 PR 37) / 不动 SYS-003/004/005 状态 (保持 Implemented) / 不动历史 PR 块 (PR 38 L91/L100 计数是历史时点, 不删不改) / 不动 SIG-013/014/017 标题错位 (留 PR 45+) / 不动 REQ-ALM-001/002 (无 .md) / 不动 QML 集成
+> - 验证: ctest 25/26 pass (新增 #15 CanSignalMonitorTest, 0 回归), validate.py --check-meta 0 error (63 pre-existing QML warnings), 真存在 7 commits in src/layer2/can_signal_monitor.cpp + 1 commit in tests/test_can_signal_monitor.cpp
 >
 
 > **PR 46 同步说明**: 1 条代码 PR (LimpHomePanel QML 端入口, 配 PR 43 L2+test + PR 44 L3 数据流完成 SYS-003 跛行模式端到端):
@@ -298,7 +307,7 @@
 | ID | 标题 | 类型 | 优先级 | 状态 | 实现版本 |
 |----|------|------|--------|------|---------|
 | REQ-SYS-001 | CAN总线超时检测 | Reliability | High | Implemented | src/layer2/can_signal_monitor.cpp (L92) + config/can_signal_status.yaml |
-| REQ-SYS-002 | CAN信号平滑与范围检查 | Reliability | High | Approved | - |
+| REQ-SYS-002 | CAN信号平滑与范围检查 | Reliability | High | Implemented | src/layer2/can_signal_monitor.cpp (PR 52 docs-only 同步) + config/can_signal_status.yaml (L1-105) + tests/test_can_signal_monitor.cpp (7 gtest 块, ctest #15) |
 | REQ-SYS-003 | 跛行模式 (Limp-Home Mode) | Safety, Reliability | High | Implemented | src/layer2/limp_home_runtime.cpp + config/limp_home.yaml (PR 43 L2+test, 19/19 ctest) |
 | REQ-SYS-004 | 安全带运行时监控 (SeatBeltRuntime) | Safety | High | Implemented | SeatBeltRuntime (PR 23 L2+test 升级) — config/seat_belt.yaml:trigger.speed_threshold (L57), 监控 5 个座位 (driver L4 / passenger L15 / rear_left L26 / rear_center L36 / rear_right L46) |
 | REQ-SYS-005 | 仪表黑屏/白屏自检 (Display Self-Test) | Safety | High | Implemented | SelfTestRuntime (PR 17, 仅信号自检子功能), QML 黑屏/白屏检测待 PR 33 |

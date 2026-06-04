@@ -124,6 +124,7 @@ set(LAYER2_TEST_SOURCES
     ${LAYER2_DIR}/alarm_runtime.cpp
     ${LAYER2_DIR}/indicator_runtime.cpp
     ${LAYER2_DIR}/seat_belt_runtime.cpp
+    ${LAYER2_DIR}/limp_home_runtime.cpp  # PR 43
     ${LAYER2_DIR}/can_signal_monitor.cpp
     ${LAYER2_DIR}/event_bus.cpp
     ${LAYER2_DIR}/vehicle_logic.cpp
@@ -158,6 +159,13 @@ target_include_directories(test_seat_belt_runtime PRIVATE
     ${CMAKE_SOURCE_DIR}/src ${GENERATED_DIR} ${LAYER1_DIR} ${LAYER2_DIR})
 add_dependencies(test_seat_belt_runtime run_yaml_to_c)
 add_test(NAME SeatBeltRuntimeTest COMMAND test_seat_belt_runtime)
+
+add_executable(test_limp_home_runtime tests/test_limp_home_runtime.cpp
+    ${LAYER2_TEST_SOURCES} ${GENERATED_SOURCES})
+target_include_directories(test_limp_home_runtime PRIVATE
+    ${CMAKE_SOURCE_DIR}/src ${GENERATED_DIR} ${LAYER1_DIR} ${LAYER2_DIR})
+add_dependencies(test_limp_home_runtime run_yaml_to_c)
+add_test(NAME LimpHomeRuntimeTest COMMAND test_limp_home_runtime)
 
 add_executable(test_event_bus tests/test_event_bus.cpp
     ${LAYER2_DIR}/event_bus.cpp ${GENERATED_SOURCES})

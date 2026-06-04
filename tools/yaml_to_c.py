@@ -363,6 +363,87 @@ const SeatBeltConfigDef SEAT_BELT_CONFIG = {{
 """
 
 
+def gen_limp_home_def_h(limp_data: Dict) -> str:
+    """生成 limp_home_def.h (PR 43 跛行模式)"""
+    return """// ⚠️ 此文件由 tools/yaml_to_c.py 自动生成
+// ⚠️ 请勿手动修改，修改请改 config/limp_home.yaml
+
+#pragma once
+#include <stdint.h>
+#include <stdbool.h>
+
+// 跛行模式级别 (L0 正常, L1 轻度, L2 紧急, L3 最深)
+typedef enum {{
+    LIMP_LEVEL_NORMAL = 0,
+    LIMP_LEVEL_L1     = 1,  // 单个关键信号超时
+    LIMP_LEVEL_L2     = 2,  // 多个关键信号超时
+    LIMP_LEVEL_L3     = 3,  // 所有信号超时 (CAN 总线断开近似)
+}} LimpHomeLevel;
+
+// L1/L2/L3 触发配置
+typedef struct {{
+    uint32_t timeout_ms;
+    int      min_timeout_signals;
+}} LimpHomeTriggerDef;
+
+// 恢复配置
+typedef struct {{
+    int required_valid_frames;
+}} LimpHomeRecoveryDef;
+
+typedef struct {{
+    const char* critical_signals[8];
+    int         critical_signals_count;
+    LimpHomeTriggerDef trigger_l1;
+    LimpHomeTriggerDef trigger_l2;
+    LimpHomeTriggerDef trigger_l3;
+    LimpHomeRecoveryDef recovery;
+    const char* msg_l1_zh;
+    const char* msg_l1_en;
+    const char* msg_l2_zh;
+    const char* msg_l2_en;
+    const char* msg_l3_zh;
+    const char* msg_l3_en;
+}} LimpHomeConfigDef;
+
+extern const LimpHomeConfigDef LIMP_HOME_CONFIG;
+"""
+
+
+def gen_limp_home_table_c(limp_data: Dict) -> str:
+    """生成 limp_home_table.c (PR 43 跛行模式)"""
+    cfg = limp_data.get("limp_home", {})
+    t1 = cfg.get("trigger_l1", {})
+    t2 = cfg.get("trigger_l2", {})
+    t3 = cfg.get("trigger_l3", {})
+    rc = cfg.get("recovery", {})
+    msgs = cfg.get("messages", {})
+    crit = cfg.get("trigger_l1", {}).get("critical_signals", [])
+
+    crit_str = ", ".join(f'"{s}"' for s in crit[:8])
+
+    return f"""// ⚠️ 此文件由 tools/yaml_to_c.py 自动生成
+// ⚠️ 请勿手动修改，修改请改 config/limp_home.yaml
+
+#include "limp_home_def.h"
+
+const LimpHomeConfigDef LIMP_HOME_CONFIG = {{
+    {{ {crit_str} }},
+    {len(crit)},
+    {{ {t1.get('timeout_ms', 500)}u, {t1.get('min_timeout_signals', 1)} }},
+    {{ {t2.get('timeout_ms', 1500)}u, {t2.get('min_timeout_signals', 2)} }},
+    {{ {t3.get('timeout_ms', 3000)}u, {t3.get('min_timeout_signals', 5)} }},
+    {{ {rc.get('required_valid_frames', 3)} }},
+    "{msgs.get('l1_zh', '信号失效')}",
+    "{msgs.get('l1_en', 'Signal lost')}",
+    "{msgs.get('l2_zh', '多个信号失效')}",
+    "{msgs.get('l2_en', 'Multiple signals lost')}",
+    "{msgs.get('l3_zh', 'CAN 总线异常')}",
+    "{msgs.get('l3_en', 'CAN bus abnormal')}"
+}};
+"""
+
+
 def gen_indicator_def_h(indicator_data: Dict) -> str:
     """生成 indicator_def.h"""
     return """// ⚠️ 此文件由 tools/yaml_to_c.py 自动生成
@@ -543,6 +624,7 @@ def generate_all():
     indicator_data = load_yaml("indicators.yaml")
     signal_data = load_yaml("can_signal_status.yaml")
     threshold_data = load_yaml("vehicle_thresholds.yaml")  # v3 探针
+    limp_data = load_yaml("limp_home.yaml")  # PR 43 跛行模式
 
     SRC_GENERATED.mkdir(parents=True, exist_ok=True)
     print(f"Generating files in {SRC_GENERATED}...")
@@ -564,6 +646,8 @@ def generate_all():
         ("alarm_rule_table.cpp", alarm_data),
         ("seat_belt_def.h", None),
         ("seat_belt_table.cpp", seat_data),
+        ("limp_home_def.h", None),  # PR 43 跛行模式
+        ("limp_home_table.cpp", limp_data),  # PR 43 跛行模式
         ("indicator_def.h", None),
         ("indicator_table.cpp", indicator_data),
         ("signal_def.h", None),
@@ -579,6 +663,8 @@ def generate_all():
         "alarm_rule_table.cpp": lambda d: gen_alarm_rule_table_c(d, can_data),
         "seat_belt_def.h": lambda _: gen_seat_belt_def_h(seat_data),
         "seat_belt_table.cpp": lambda d: gen_seat_belt_table_c(d),
+        "limp_home_def.h": lambda _: gen_limp_home_def_h(limp_data),  # PR 43
+        "limp_home_table.cpp": lambda d: gen_limp_home_table_c(d),  # PR 43
         "indicator_def.h": lambda _: gen_indicator_def_h(indicator_data),
         "indicator_table.cpp": lambda d: gen_indicator_table_c(d),
         "signal_def.h": lambda _: gen_signal_def_h(signal_data),

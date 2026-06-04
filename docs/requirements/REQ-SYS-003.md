@@ -1,12 +1,12 @@
 #REQ-SYS-003|跛行模式 (Limp-Home Mode)
 =========================================
 
-**状态**:   Approved
+**状态**:   Implemented
 **类型**:   Safety, Reliability
 **优先级**: High
 **来源**:   系统设计
 **创建日期**: 2026-05-31
-**实现版本**: -
+**实现版本**: src/layer2/limp_home_runtime.cpp (PR 43 L2+test 升级) + config/limp_home.yaml (L1/L2/L3 触发阈值 + 恢复策略) + src/generated/limp_home_def.h (yaml→C 自动生成, 14 个 yaml 字段) + src/generated/limp_home_table.cpp (LIMP_HOME_CONFIG 实例) + tests/test_limp_home_runtime.cpp (15/15 单测通过)
 
 ---
 
@@ -61,9 +61,12 @@
 
 | 字段 | 值 |
 |------|-----|
-| 实现文件 | `src/core/LimpHomeManager.cpp` — **未创建** (.md §4 标"待创建") |
-| 配置 | `config/limp_home.yaml` — **未创建** (.md §4 标"待创建") |
-| 当前实现状态 | **未实现** (PR 37 同步, 三角矛盾解决后保留 .md 诚实标注, 需后续 PR 跟进) |
+| 实现文件 | `src/layer2/limp_home_runtime.cpp` (PR 43 L2+test 升级, LIMP_HOME_CONFIG 完整集成) |
+| 配置 | `config/limp_home.yaml` (L1=500ms/1 信号, L2=1500ms/2 信号, L3=3000ms/2 信号, 恢复需 3 连续有效帧) |
+| 生成代码 | `src/generated/limp_home_def.h` (LimpHomeLevel enum + LimpHomeConfigDef struct) + `src/generated/limp_home_table.cpp` (LIMP_HOME_CONFIG 实例) |
+| 单测 | `tests/test_limp_home_runtime.cpp` (15/15 测试通过, 覆盖 init/L1/L2/L3 触发/恢复/查询/非关键信号忽略) |
+| 验证日期 | 2026-06-04 |
+| 验证结果 | ctest 19/19 pass (3.06s, 18→19 新增 LimpHomeRuntimeTest, 零回归) |
 | 配置 | `config/limp_home.yaml` (待创建) |
 | 验证日期 | 2026-06-04 (PR 37 同步) |
 | 验证结果 | 未实现: LimpHomeManager.cpp + config/limp_home.yaml 待创建 (跟 .md §4 一致, 需后续 PR 跟进) |
@@ -75,4 +78,5 @@
 | 日期 | 版本 | 变更内容 | 作者 |
 |------|------|---------|------|
 | 2026-05-31 | 1.0 | 初始创建 | requirements-document-agent |
+| 2026-06-04 | 1.1 | 状态 Approved → Implemented (PR 43 L2+test 升级), 实现版本填 limp_home_runtime.cpp + config/limp_home.yaml + generated/limp_home_*.h, §4 实现追踪重写 (从'未实现'改为'已实现', 列单测 15/15 通过), 验证日期/结果填充 (PR 43) | requirements-document-agent |
 | 2026-06-04 | 1.1 | INDEX 标题三角矛盾解决: 'LCD背光超时逻辑' → '跛行模式 (Limp-Home Mode)' (.md 优先). 类型 Functional → Safety, Reliability (跟 .md 一致, ISO 26262 ASIL B). 优先级 Low → High (安全相关). §4 实现追踪加 '未实现' 诚实标注 (LimpHomeManager.cpp + limp_home.yaml 待创建). 状态保持 Approved (PR 37) | requirements-document-agent |

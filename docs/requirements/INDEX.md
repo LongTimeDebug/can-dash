@@ -1,6 +1,6 @@
 # CAN-Dash 需求索引
 
-最后更新: 2026-06-04 (PR 41 同步 + 待办小节)
+最后更新: 2026-06-04 (PR 43 同步, LimpHomeRuntime L2+test ship)
 
 ## 统计
 
@@ -11,8 +11,8 @@
 | IND (指示灯) | 12 | 0 | 12 | 0 |
 | SIG (CAN信号) | 19 | 0 | 19 | 0 |
 | UI (界面) | 5 | 1 | 4 | 0 |
-| SYS (系统) | 5 | 2 | 3 | 0 |
-| **合计** | **59** | **2** | **55** | **2** |
+| SYS (系统) | 5 | 1 | 4 | 0 |
+| **合计** | **59** | **1** | **56** | **2** |
 
 > **PR 39 同步说明**: HYBRID 类别 1 条 docs-only 同步 (跟 PR 25/33/34/35/36/37/38 docs-only 形状一致, 0 cpp 改动):
 > - **REQ-HYBRID-002** (电池温度显示与报警): 状态 Approved → Implemented, 实现版本补全 QML 显示. **修正 §4 stale 误判**: 之前 .md §4 "QML 显示 | **缺** — 当前仪表盘未在 TripPanel / 主仪表区显示 battery_temp 数值" + INDEX impl ref "显示组件待 PR 32" 是 stale 描述. 实际 src/ui/EnergyFlowDiagram.qml L246-247 早已实现 batteryTemp.toFixed(0) + "°C" 显示 + 颜色阈值 (>50°C 红, >40°C 橙, 其他灰), 数据通路是 ShmDataSource.cpp:L316 (out.data.battery_temp = shm.battery_temp) → QtDataBinder.cpp:L194 (m["battery_temp"] = d.battery_temp) → DashboardMain.qml:L262 (batteryTemp: dashboard.displayData["battery_temp"] || 0 绑定到 EnergyFlowDiagram). 报警侧 bat_temp_high L228 + bat_temp_critical L244 + 指示灯 bat_warn_light L5 联动完整, "显示" 部分"缺"的判断不成立.
@@ -76,6 +76,22 @@
 > **PR 25 同步说明**: 接 PR 24 留下的 4 条 ALM (006/008/009/011), 状态 Approved → Implemented 并填实现版本. 这 4 条都是 IND-mode 指示灯联动 (energy_mode==N 联动 N 个 widget 亮/灭), 跟 alarm_runtime 现有 single-key-condition 模型天然兼容, alarm_rules.yaml 早就有对应规则 (ev_mode_active L85 / engine_boost_active L117 / charge_mode_active L136 / charge_fault_alarm L163).
 
 ---
+> **PR 43 同步说明**: 1 条代码 PR (跟 PR 23 SeatBeltRuntime 形状一致, L2+test 升级 + yaml 驱动 + 单测):
+> - **REQ-SYS-003** (跛行模式 LimpHomeRuntime): 状态 Approved → Implemented, 实现版本:
+>   - `config/limp_home.yaml` (新增) — L1=500ms/1 信号, L2=1500ms/2 信号, L3=3000ms/2 信号, 恢复需 3 连续有效帧
+>   - `src/layer2/limp_home_runtime.h/cpp` (新增) — L2 runtime, init/onValueChanged/tick/query API, 3 级状态机 (L0/L1/L2/L3)
+>   - `src/generated/limp_home_def.h` + `limp_home_table.cpp` (新增) — yaml_to_c.py 生成的 LimpHomeLevel enum + LIMP_HOME_CONFIG 实例
+>   - `tests/test_limp_home_runtime.cpp` (新增) — 15/15 单测通过, 覆盖 init/L1/L2/L3 触发/恢复/查询/非关键信号忽略
+>   - `tools/yaml_to_c.py` (扩展) — 加 limp_home case (gen_limp_home_def_h + gen_limp_home_table_c)
+>   - `CMakeLists.txt` (扩展) — 加 test_limp_home_runtime target + limp_home_runtime.cpp 到 LAYER2_TEST_SOURCES
+> - **设计决策**:
+>   - "3 级 L1/L2/L3" 按 .md §2.1 跛行模式触发条件实现 (单信号超时 L1, 多信号超时 L2, 全部超时 L3)
+>   - 恢复策略: 连续 N 帧全有效才退出跛行模式 (.md §2.3), 避免抖动
+>   - **未实现** ISO 26262 ASIL B 完整规格 (.md §3 非功能需求) — 当前 L2 runtime 覆盖 .md §2 功能需求, §3 安全等级需要后续 PR (跟 LIMP_HOME_CONFIG 加 ISO 26262 字段)
+> - 类别表修复: SYS 2/3/0 → 1/4/0 (Approved -1, Implemented +1), 合计 2/55/2 → 1/56/2
+> - **范围限制 (跟 PR 38-42 一致)**: 不动 UI-005 (资源规格 PR 37) / 不动 SYS-002 / 不动 REQ-ALM-001/002 (无 .md) / 不动 SYS-005 黑屏/白屏检测 (需 QML 像素分析, 后续代码 PR) / 不动 SIG-013/014/017 标题错位 (PR 38 漏, 留 PR 44+) / 不动 QML 集成 (limpHomeLevel 暴露到 QML 需 dashboard_backend.cpp/QtDataBinder 改动, 留 PR 44+)
+>
+
 > **PR 42 同步说明**: 顶部加 '## 待办' 小节, 汇总所有 PR 范围限制里的未完成项 (1 处 INDEX 文档结构改动, 0 cpp 改动):
 > - 从 PR 25/27/28/30/32/33/34/35/36/37/38/39/40/41 范围限制段提取 3 类未完成项:
 >   - **代码 PR 2 项**: REQ-SYS-005 黑屏/白屏检测完整实现 / REQ-SYS-003 跛行模式 LimpHomeManager
@@ -251,7 +267,7 @@
 |----|------|------|--------|------|---------|
 | REQ-SYS-001 | CAN总线超时检测 | Reliability | High | Implemented | src/layer2/can_signal_monitor.cpp (L92) + config/can_signal_status.yaml |
 | REQ-SYS-002 | CAN信号平滑与范围检查 | Reliability | High | Approved | - |
-| REQ-SYS-003 | 跛行模式 (Limp-Home Mode) | Safety, Reliability | High | Approved | - (未实现: LimpHomeManager.cpp + config/limp_home.yaml 待创建) |
+| REQ-SYS-003 | 跛行模式 (Limp-Home Mode) | Safety, Reliability | High | Implemented | src/layer2/limp_home_runtime.cpp + config/limp_home.yaml (PR 43 L2+test, 19/19 ctest) |
 | REQ-SYS-004 | 安全带运行时监控 (SeatBeltRuntime) | Safety | High | Implemented | SeatBeltRuntime (PR 23 L2+test 升级) — config/seat_belt.yaml:trigger.speed_threshold (L57), 监控 5 个座位 (driver L4 / passenger L15 / rear_left L26 / rear_center L36 / rear_right L46) |
 | REQ-SYS-005 | 仪表黑屏/白屏自检 (Display Self-Test) | Safety | High | Implemented | SelfTestRuntime (PR 17, 仅信号自检子功能), QML 黑屏/白屏检测待 PR 33 |
 

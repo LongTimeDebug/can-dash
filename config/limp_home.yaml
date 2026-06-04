@@ -1,0 +1,35 @@
+# 跛行模式配置
+# 跟 seat_belt.yaml 形状一致, 由 yaml_to_c.py 生成 LimpHomeDef
+
+limp_home:
+  # L1 触发: 单个关键信号超时 (vehicle_speed / motor_rpm)
+  trigger_l1:
+    timeout_ms: 500
+    # 必须至少超时 1 个关键信号
+    min_timeout_signals: 1
+    # 关键信号列表 (display_key 来自 can_ids.yaml)
+    critical_signals:
+      - "vehicle_speed"
+      - "motor_rpm"
+
+  # L2 触发: 多个关键信号超时 (紧急跛行)
+  trigger_l2:
+    timeout_ms: 1500
+    min_timeout_signals: 2
+
+  # L3 触发: 所有信号超时 (最深跛行, CAN 总线断开近似)
+  trigger_l3:
+    timeout_ms: 3000
+    min_timeout_signals: 2  # 跟 critical_signals count 一致
+
+  # 恢复: 连续有效帧数
+  recovery:
+    required_valid_frames: 3
+
+  messages:
+    l1_zh: "信号失效, 速度/转速显示已降级"
+    l1_en: "Signal lost, speed/RPM display degraded"
+    l2_zh: "多个信号失效, 仅显示关键报警"
+    l2_en: "Multiple signals lost, critical alerts only"
+    l3_zh: "CAN 总线异常, 显示已禁用"
+    l3_en: "CAN bus abnormal, display disabled"

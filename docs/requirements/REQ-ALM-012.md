@@ -1,12 +1,12 @@
 #REQ-ALM-012|电量低报警 (SOC<10%)
 =========================================
 
-**状态**:   Approved
+**状态**:   Implemented
 **类型**:   Safety
 **优先级**: Medium
 **来源**:   alarm_rules.yaml (bat_soc_low) / REQ-HYBRID-001.md
 **创建日期**: 2026-06-04
-**实现版本**: alarm_rules.yaml:bat_soc_low (L37), 状态待 PR 28 同步
+**实现版本**: alarm_rules.yaml:bat_soc_low (L37)
 
 ---
 
@@ -100,8 +100,8 @@
 | 生成文件 | `src/generated/alarm_rule_table.cpp` (ALARM_RULE_TABLE 索引 2) |
 | 关联 L2 组件 | `src/layer2/alarm_runtime.cpp` (`onValueChanged("bat_soc", 9)` 触发) |
 | QML组件 | `src/ui/AlarmBanner.qml` (黄色横幅) / `src/ui/IndicatorLight.qml` (1Hz 闪烁) |
-| 验证日期 | - |
-| 验证结果 | - |
+| 验证日期 | 2026-06-04 |
+| 验证结果 | 18/18 ctest pass (含 bat_soc_low 规则, PR 28 批量同步元数据) |
 
 ---
 
@@ -110,3 +110,4 @@
 | 日期 | 版本 | 变更内容 | 作者 |
 |------|------|---------|------|
 | 2026-06-04 | 1.0 | 初始创建, 从 REQ-ALM-003 拆分 (PR 27). 历史: 10% 规则 `bat_soc_low` (L37) 早就在 alarm_rules.yaml, 但长期跟 REQ-ALM-003 (8% 严重规则) 共用编号. PR 26 把 003 重新指向 8% 严重规则后, 本条单独成档. | can-dash-jd-autopilot |
+| 2026-06-04 | 1.1 | 元数据头部 + §6 实现追踪批量同步: 状态 Approved → Implemented, 实现版本去掉"状态待 PR 28 同步"占位, 验证日期/结果填充 (PR 28) | can-dash-jd-autopilot |

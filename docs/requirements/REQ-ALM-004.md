@@ -1,12 +1,12 @@
 #REQ-ALM-004|电机温度过高报警
 =========================================
 
-**状态**:   Approved
+**状态**:   Implemented
 **类型**:   Safety
 **优先级**: High
-**来源**:   alarm_rules.yaml (已有)
+**来源**:   alarm_rules.yaml (motor_overtemp)
 **创建日期**: 2026-05-31
-**实现版本**: -
+**实现版本**: alarm_rules.yaml:motor_overtemp (L69)
 
 ---
 
@@ -80,11 +80,12 @@
 
 | 字段 | 值 |
 |------|-----|
-| 实现文件 | `config/alarm_rules.yaml` |
-| 生成代码 | `src/generated/alarm_rule_def.h` |
-| QML组件 | `src/ui/AlarmBanner.qml` |
-| 验证日期 | - |
-| 验证结果 | - |
+| 实现文件 | `config/alarm_rules.yaml` (motor_overtemp 规则, L69) |
+| 生成代码 | `src/generated/alarm_rule_table.cpp` (ALARM_RULE_TABLE 索引 4) |
+| 关联 L2 组件 | `src/layer2/alarm_runtime.cpp` (`onValueChanged("motor_temp", 110)` 触发) |
+| QML组件 | `src/ui/AlarmBanner.qml` (红色横幅) / `src/ui/IndicatorLight.qml` (motor_overtemp_light) |
+| 验证日期 | 2026-06-04 |
+| 验证结果 | 18/18 ctest pass (含 motor_overtemp 规则, PR 28 批量同步元数据) |
 
 ---
 
@@ -93,3 +94,4 @@
 | 日期 | 版本 | 变更内容 | 作者 |
 |------|------|---------|------|
 | 2026-05-31 | 1.0 | 初始创建（从 alarm_rules.yaml 补充） | requirements-document-agent |
+| 2026-06-04 | 1.1 | 元数据头部 + §5 实现追踪批量同步: 状态 Approved → Implemented, 实现版本 + alarm_rules.yaml:motor_overtemp (L69), 验证日期/结果填充 (PR 28) | can-dash-jd-autopilot |

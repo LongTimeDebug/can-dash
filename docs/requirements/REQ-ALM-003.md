@@ -1,12 +1,12 @@
 #REQ-ALM-003|电量严重不足报警 (SOC<8%)
 =========================================
 
-**状态**:   Approved
+**状态**:   Implemented
 **类型**:   Safety
 **优先级**: High
-**来源**:   alarm_rules.yaml (已有) / REQ-HYBRID-001.md
+**来源**:   alarm_rules.yaml (soc_critical_low) / REQ-HYBRID-001.md
 **创建日期**: 2026-05-31
-**实现版本**: -
+**实现版本**: alarm_rules.yaml:soc_critical_low (L53)
 
 ---
 
@@ -95,11 +95,12 @@
 
 | 字段 | 值 |
 |------|-----|
-| 实现文件 | `config/alarm_rules.yaml` |
-| 生成代码 | `src/generated/alarm_rule_def.h` |
-| QML组件 | `src/ui/AlarmBanner.qml` |
-| 验证日期 | - |
-| 验证结果 | - |
+| 实现文件 | `config/alarm_rules.yaml` (soc_critical_low 规则, L53) |
+| 生成代码 | `src/generated/alarm_rule_table.cpp` (ALARM_RULE_TABLE 索引 5) |
+| 关联 L2 组件 | `src/layer2/alarm_runtime.cpp` (`onValueChanged("bat_soc", 7)` 触发) |
+| QML组件 | `src/ui/AlarmBanner.qml` (红色横幅) / `src/ui/IndicatorLight.qml` (3Hz 闪烁) |
+| 验证日期 | 2026-06-04 |
+| 验证结果 | 18/18 ctest pass (含 soc_critical_low 规则, PR 28 批量同步元数据) |
 
 ---
 
@@ -110,3 +111,4 @@
 | 2026-05-31 | 1.0 | 初始创建（从 alarm_rules.yaml 补充） | requirements-document-agent |
 | 2026-06-04 | 1.1 | 修 1.3 节"相关需求"自引用: 原本混引 `bat_soc_low` (10% 规则) 跟本 .md 描述的 8% 严重规则, 改成清晰指 `soc_critical_low`. 三角矛盾决策 (a/b/c) 选 (b) 改 INDEX 对齐本文件 (PR 26) | can-dash-jd-autopilot |
 | 2026-06-04 | 1.2 | 1.3 节去掉 PR 26 的 "待 PR 27 另立 012" 注, 改成对 REQ-ALM-012 的明确引用 (PR 27 拆分完成) | can-dash-jd-autopilot |
+| 2026-06-04 | 1.3 | 元数据头部 + §6 实现追踪批量同步: 状态 Approved → Implemented, 实现版本 + alarm_rules.yaml:soc_critical_low (L53), 验证日期/结果填充 (PR 28) | can-dash-jd-autopilot |

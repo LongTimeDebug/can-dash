@@ -1,6 +1,6 @@
 # CAN-Dash 需求索引
 
-最后更新: 2026-06-04 (PR 27 同步)
+最后更新: 2026-06-04 (PR 28 同步)
 
 ## 统计
 
@@ -14,6 +14,8 @@
 | SYS (系统) | 5 | 4 | 0 | 0 |
 | **合计** | **59** | **39** | **11** | **3** |
 
+> **PR 28 同步说明**: 批量同步 3 个 .md 元数据头部 + §实现追踪章节, 跟 INDEX 表对齐 — REQ-ALM-003/004/012 状态 Approved → Implemented, 实现版本填 alarm_rules.yaml:rule_name (L<n>), 验证日期/结果填充. REQ-ALM-001/002 无 .md 跳过; REQ-ALM-005 已是 Implemented, v1.0 标法不同不动.
+>
 > **PR 27 同步说明**: 新立 REQ-ALM-012 (电量低报警 SOC<10%, `bat_soc_low` 规则 L37), 从 REQ-ALM-003 拆分. ALM 类别 11 → 12 项, 合计 58 → 59. 状态字段元数据留待 PR 28 同步 (本 PR 27 不动 .md 元数据 "状态/实现版本" 字段, 避免范围扩大).
 >
 > **PR 25 同步说明**: 接 PR 24 留下的 4 条 ALM (006/008/009/011), 状态 Approved → Implemented 并填实现版本. 这 4 条都是 IND-mode 指示灯联动 (energy_mode==N 联动 N 个 widget 亮/灭), 跟 alarm_runtime 现有 single-key-condition 模型天然兼容, alarm_rules.yaml 早就有对应规则 (ev_mode_active L85 / engine_boost_active L117 / charge_mode_active L136 / charge_fault_alarm L163).

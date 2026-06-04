@@ -255,6 +255,13 @@ target_include_directories(test_time_util PRIVATE
     ${CMAKE_SOURCE_DIR}/src ${LAYER2_DIR})
 add_test(NAME TimeUtilTest COMMAND test_time_util)
 
+# LCD 背光超时管理 (PR 51) — 纯 L2 状态机, 无 yaml/L1 依赖
+add_executable(test_display_manager tests/test_display_manager.cpp
+    ${LAYER2_DIR}/display_manager.cpp)
+target_include_directories(test_display_manager PRIVATE
+    ${CMAKE_SOURCE_DIR}/src ${LAYER2_DIR})
+add_test(NAME DisplayManagerTest COMMAND test_display_manager)
+
 # 性能基线（perf baseline）— 测量数据流热路径耗时
 # 永远 print 数字，预算超 50% 时给出 warning（不 hard-fail，避免不同机器抖动）
 add_executable(test_perf_baseline tests/test_perf_baseline.cpp

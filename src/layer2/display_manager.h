@@ -1,5 +1,5 @@
 // display_manager.h
-// Layer 2: LCD 背光超时管理（REQ-SYS-003）
+// Layer 2: LCD 背光超时管理 (无对应 REQ, 预留 REQ-SYS-00X 资源)
 // 纯 C++，无 Qt，无动态内存
 
 #pragma once
@@ -37,6 +37,7 @@ private:
     BacklightState m_state;
     uint64_t m_idleMs;          // 闲置计时（从用户最后一次交互算起）
     uint64_t m_lastTickMs;
+    bool     m_firstTick;       // PR 51: 第一次 tick 初始化 lastTickMs (避免 m_lastTickMs=0 跟未初始化冲突)
     float    m_lastSpeed;        // 上次车速
     bool     m_wasMoving;        // 上一帧是否在行驶
     uint64_t m_stationaryMs;     // 持续停车计时（毫秒）

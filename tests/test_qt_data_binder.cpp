@@ -35,8 +35,11 @@ static int g_test_passed = 0;
 namespace {
 
 // 构造一个测试用 DisplaySnapshot
+// PR 55: 跟 PR 50 同形状 - DisplaySnapshot s{} 值初始化
+// 之前 s; (default-init) 让 alarms[1..N] / indicators.lights[1..N] / seat_belt.seats[1..N]
+// 留栈垃圾 → binder buildAlarmList / buildIndicatorStates 越界读 → memchr 撞 SIGSEGV
 DisplaySnapshot makeSnapshot() {
-    DisplaySnapshot s;
+    DisplaySnapshot s{};
     s.data.bat_volt = 350.0f;
     s.data.bat_soc = 75;
     s.data.vehicle_speed = 60.0f;

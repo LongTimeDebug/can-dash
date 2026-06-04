@@ -54,7 +54,10 @@ int main(int argc, char** argv) {
         backend.setDataBinder(std::move(binder));
         backend.setDataSource(std::move(source));
 
-        DisplaySnapshot s;
+        // PR 55: 跟 PR 50 同形状 - DisplaySnapshot s{} 值初始化
+        // 之前 s; (default-init) 让 alarm_count 留栈垃圾, binder buildAlarmList
+        // 读 alarms[i] 越界 → memchr 撞 SIGSEGV, 8/10 失败率
+        DisplaySnapshot s{};
         s.data.vehicle_speed = 88.0f;
         s.data.bat_volt = 400.0f;
         s.health = HEALTH_OK;
@@ -125,7 +128,9 @@ int main(int argc, char** argv) {
 
         backend.setLanguage("en_US");
         // 验证：setLanguage 不抛 + 不影响数据
-        DisplaySnapshot s;
+        // PR 55: 跟 PR 50 同形状 - DisplaySnapshot s{} 值初始化
+        // 之前 s; (default-init) 让 alarms[]/indicators[] 留栈垃圾
+        DisplaySnapshot s{};
         s.data.vehicle_speed = 60.0f;
         raw_source->pushSnapshot(s);
         TEST_ASSERT(qFuzzyCompare(backend.displayData()["vehicle_speed"].toFloat(), 60.0f), "语言切换后数据仍正常");

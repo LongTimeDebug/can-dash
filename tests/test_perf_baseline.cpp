@@ -1,7 +1,7 @@
 // test_perf_baseline.cpp
 // 性能基线测试 — 测量数据流热路径耗时
 //
-// 测量 8 个关键指标（取中位数 + p99，warmup 100 轮后跑 1000 轮）：
+// 测量 9 个关键指标（取中位数 + p99，warmup 100 轮后跑 1000 轮）：
 //   1. shm write + commit（checksum + msync）— IPC 写
 //   2. shm read + checksum verify — IPC 读
 //   3. AlarmRuntime onValueChanged (28 keys × 18 rules) — 业务规则评估
@@ -10,6 +10,7 @@
 //   6. LimpHomeRuntime tick (critical signals, timeout 评估) — PR 43 L2 runtime 成本
 //   7. TripComputer tick + tickEnergy (派生指标积分) — PR 1-4 L2 derived metrics 成本
 //   8. ThemeManager tick + colors (AUTO 模式 hour 推算 + DAY/NIGHT 评估) — PR 7 L2 主题成本
+//   9. WarningManager tick + activeWarnings + hasCritical (去重/防抖/hold) — PR 9 L2 告警成本
 //
 // 设计原则：
 //   - 无 Qt 依赖（仅 C++17 + cassert + chrono），保证 CI 跑得起
@@ -41,6 +42,7 @@
 #include "layer2/theme_manager.h"
 #include "layer2/time_util.h"
 #include "layer2/trip_computer.h"
+#include "layer2/warning_manager.h"  // PR 59 perf baseline
 #include "generated/alarm_rule_def.h"
 #include "generated/limp_home_def.h"
 
@@ -404,6 +406,46 @@ void bench_theme_tick(std::vector<int64_t>& samples) {
     }
 }
 
+// ─── WarningManager tick + activeWarnings + hasCritical (PR 9 L2 告警成本) ──
+// 模拟 16ms tick 周期内: ShmDataSource 推 shm.last_commit_ms 调 m_warning.tick()
+// + m_warning.activeWarnings() 取活动告警列表 + m_warning.hasCritical() 查 CRITICAL
+// 跟 ShmDataSource::onTick L194-197 调用顺序一致: tick(now_ms) + activeWarnings() + hasCritical()
+// WarningManager 在 candash:: 命名空间 (跟 ThemeManager 一致)
+// bench 启动前预 push 1 条 CRITICAL 告警, 让 active 列表非空, 测典型 onTick 成本
+// (空 manager 是退化情况, 不能反映"驾驶中有 1-3 条告警"真实场景)
+void bench_warning_manager_tick(std::vector<int64_t>& samples) {
+    candash::WarningManager warn;
+    // 预 push 1 条 CRITICAL 告警 (priority=0, severityFromPriority → CRITICAL)
+    // value-init 避免 padding 字节 garbage, 跟 PR 55 教训的 struct 初始化一致
+    candash::AlarmEvent evt{};
+    std::strncpy(evt.name,    "test_critical", sizeof(evt.name)    - 1);
+    std::strncpy(evt.text_zh, "测试严重告警",   sizeof(evt.text_zh) - 1);
+    std::strncpy(evt.text_en, "test critical",  sizeof(evt.text_en) - 1);
+    evt.priority = 0;       // CRITICAL (severityFromPriority: priority=0 → CRITICAL)
+    evt.color_r  = 255;     // 红色 (PR 9 设计: critical 红)
+    evt.color_g  = 0;
+    evt.color_b  = 0;
+    warn.pushAlarm(evt, 1000);  // t=1000ms push, 3000ms hold → 过期 t=4000
+    // 时间起点: 假装现在 t=1000ms (跟 trip_computer_tick / theme_tick 一致, 跟 16ms QTimer 节奏对齐)
+    uint64_t now = 1000;
+    Stopwatch sw;
+    for (int i = 0; i < 1000; i++) {
+        sw.start();
+        // 跟 ShmDataSource::onTick 调用顺序一致: tick 推进 hold + 读 active + 查 CRITICAL
+        warn.tick(now);
+        const auto& active = warn.activeWarnings();
+        // 模拟 snapshot 字段读取: warning_count + has_critical
+        // (snapshot 复制 8 个 DisplayActiveWarning 是 L3 s4 范围, 不在本 L2 bench 测)
+        // (volatile 防止编译器把整个读链优化掉)
+        volatile size_t n    = active.size();
+        volatile bool   crit = warn.hasCritical();
+        (void)n; (void)crit;
+        // 推进 16ms 到下一 tick
+        now += 16;
+        samples.push_back(sw.elapsed_ns());
+    }
+}
+
 // ─── Warmup + 跑 1000 轮 + 统计 ─────────────────────
 template <typename BenchFn>
 BenchStats run_bench(const char* name, BenchFn fn) {
@@ -435,7 +477,7 @@ int main() {
         return 1;
     }
 
-    // 跑 8 个基准
+    // 跑 9 个基准
     printf("[1] shm write + commit (memcpy + checksum + msync + frame_seq)\n");
     BenchStats s1 = run_bench("shm_write_commit", bench_shm_write_commit);
 
@@ -460,13 +502,17 @@ int main() {
     printf("\n[8] ThemeManager tick + colors (AUTO 模式 hour 推算 + DAY/NIGHT 评估 + 5 色板) (PR 7)\n");
     BenchStats s8 = run_bench("theme_tick", bench_theme_tick);
 
+    printf("\n[9] WarningManager tick + activeWarnings + hasCritical (CRITICAL 告警 hold + 查 CRITICAL) (PR 9)\n");
+    BenchStats s9 = run_bench("warning_manager_tick", bench_warning_manager_tick);
+
     // ─── 16ms tick 预算分析 ─────────────────────────
     // 单 dash 端 tick = read + convert + alarm eval + trip_computer
     int64_t dash_tick_ns = s2.median_ns + s4.median_ns + s3.median_ns + s7.median_ns;
-    int64_t full_tick_ns = s5.median_ns;
-    int64_t limp_tick_ns = s6.median_ns;
-    int64_t trip_tick_ns = s7.median_ns;
+    int64_t full_tick_ns  = s5.median_ns;
+    int64_t limp_tick_ns  = s6.median_ns;
+    int64_t trip_tick_ns  = s7.median_ns;
     int64_t theme_tick_ns = s8.median_ns;
+    int64_t warn_tick_ns  = s9.median_ns;
     double budget_pct = static_cast<double>(dash_tick_ns) / 16000000.0 * 100.0;
 
     printf("\n=== 16ms tick 预算分析 (dash 端, processor 端在另一进程) ===\n");
@@ -487,6 +533,8 @@ int main() {
            limp_tick_ns, limp_tick_ns / 16000000.0 * 100.0);
     printf("  theme tick (display 旁路): %7" PRId64 " ns (%.4f%%) (PR 7 L2 主题, 不计入 dash tick 总计)\n",
            theme_tick_ns, theme_tick_ns / 16000000.0 * 100.0);
+    printf("  warning tick (display 旁路): %7" PRId64 " ns (%.4f%%) (PR 9 L2 告警去重/防抖/hold, 不计入 dash tick 总计)\n",
+           warn_tick_ns, warn_tick_ns / 16000000.0 * 100.0);
     printf("  → headroom for QML/Paint : %.2f%% (= 16ms - %" PRId64 " ns)\n",
            100.0 - budget_pct, dash_tick_ns);
 
@@ -509,6 +557,8 @@ int main() {
     printf("  \"trip_computer_tick_p99_ns\":    %" PRId64 ",\n", s7.p99_ns);
     printf("  \"theme_tick_median_ns\":         %" PRId64 ",\n", s8.median_ns);
     printf("  \"theme_tick_p99_ns\":            %" PRId64 ",\n", s8.p99_ns);
+    printf("  \"warning_manager_tick_median_ns\": %" PRId64 ",\n", s9.median_ns);
+    printf("  \"warning_manager_tick_p99_ns\":    %" PRId64 ",\n", s9.p99_ns);
     printf("  \"dash_tick_total_ns\":          %" PRId64 ",\n", dash_tick_ns);
     printf("  \"16ms_budget_pct\":             %.3f,\n", budget_pct);
     printf("  \"alarm_rule_count\":            %d,\n", ALARM_RULE_TABLE_COUNT);

@@ -13,6 +13,7 @@ Scenarios:
     idle         - 静止：所有信号保持初始值
     highway      - 高速巡航：持续 120-130km/h, energy_mode=2 (engine boost), 高功耗
     low_battery  - 低电量：SOC<10% 触发 bat_soc_low + soc_critical_low 报警, 跛行降速
+    hybrid       - 混合驱动：能量模式 HYBRID (energy_mode=1), 电机+发动机同时工作
 """
 
 import argparse
@@ -90,6 +91,24 @@ def make_scenario(name: str) -> Scenario:
             "energy_mode": 0,    # EV 模式
             "brake": 1,          # 跛行时刹车
             "engine_rpm": 0,
+        })
+    elif name == "hybrid":
+        # 混合驱动场景：能量模式 HYBRID (1)
+        # 电机 + 发动机 同时工作, 中等车速, SOC 适中, 燃油消耗与电量消耗同时存在
+        # 用途: 验证 energy_mode=1 时的 EnergyFlowDiagram 渲染
+        s.initial.update({
+            "vehicle_speed": 60,      # 中速巡航
+            "bat_soc": 55,            # 中等 SOC
+            "bat_volt": 355,          # 正常电压
+            "bat_curr": -30,          # 小幅放电 (电机驱动)
+            "energy_mode": 1,         # HYBRID
+            "engine_rpm": 1800,       # 发动机运行中
+            "motor_rpm": 3000,        # 电机运行
+            "motor_temp": 65,         # 中等温度
+            "brake": 0,               # 不踩刹车
+            "fuel_level": 55,         # 燃油中等
+            "charge_status": 0,
+            "charge_power": 0,
         })
     return s
 
@@ -317,8 +336,61 @@ class CanSimulator:
             self.update_highway(tick)
         elif self.scenario.name == "low_battery":
             self.update_low_battery(tick)
+        elif self.scenario.name == "hybrid":
+            self.update_hybrid(tick)
         else:
             self.update_driving(tick)  # default
+
+    def update_hybrid(self, tick: int):
+        """混合驱动场景：能量模式 HYBRID (energy_mode=1)
+        电机 + 发动机 同时工作, 中等车速 50-70 km/h, SOC 适中
+        周期 300 ticks (15s @ 50ms), 让 sparkline 看到完整波动
+        """
+        phase = (tick % 300) / 300.0
+        # 速度在 50-70 之间慢起伏
+        if phase < 0.5:
+            speed = 50 + (phase / 0.5) * 20
+        else:
+            speed = 70 - ((phase - 0.5) / 0.5) * 20
+        speed += random.uniform(-2, 2)
+        self.state["vehicle_speed"] = max(0, min(260, speed))
+        self.state["brake"] = 0  # 巡航, 不踩刹车
+
+        # 电机：转速 = speed * 50, 温度中等
+        self.state["motor_rpm"] = int(self.state["vehicle_speed"] * 50)
+        self.state["motor_temp"] = 60 + (self.state["vehicle_speed"] / 70) * 15
+        self.state["motor_temp"] += random.uniform(-0.5, 0.5)
+        self.state["motor_temp"] = max(30, min(150, self.state["motor_temp"]))
+
+        # 电池：稳定电压, 小幅放电 (电机驱动)
+        self.state["bat_volt"] += random.uniform(-0.2, 0.2)
+        self.state["bat_volt"] = max(340, min(370, self.state["bat_volt"]))
+        self.state["bat_curr"] = -25 + (self.state["vehicle_speed"] / 70) * -15
+        self.state["bat_curr"] += random.uniform(-3, 3)
+
+        # SOC 缓慢下降 (电机 + 发动机混合消耗)
+        if tick % 600 == 0:
+            self.state["bat_soc"] = max(0, self.state["bat_soc"] - 1)
+
+        # 发动机: 中等转速, 持续运行
+        self.state["engine_rpm"] = 1500 + int(self.state["vehicle_speed"] * 5)
+        self.state["engine_rpm"] += random.randint(-50, 50)
+        self.state["engine_fault"] = 0
+
+        # 能量模式：固定 HYBRID (1)
+        self.state["energy_mode"] = 1
+
+        # 燃油消耗 (发动机持续运行)
+        self.state["fuel_level"] = max(0, self.state["fuel_level"] - 0.002)
+
+        # 续航计算
+        self.state["ev_range"] = max(0, int(self.state["bat_soc"] * 1.0))
+        self.state["fuel_range"] = max(0, int(self.state["fuel_level"] * 8))
+
+        # 充电状态
+        self.state["charge_status"] = 0
+        self.state["charge_fault"] = 0
+        self.state["charge_power"] = 0
 
     def run(self):
         sock = self.connect()
@@ -429,7 +501,8 @@ class CanSimulator:
 def main():
     parser = argparse.ArgumentParser(description="CAN 仿真引擎")
     parser.add_argument("--scenario", default="driving",
-                        choices=["driving", "charging", "fault", "idle", "highway", "low_battery"],
+                        choices=["driving", "charging", "fault", "idle",
+                                 "highway", "low_battery", "hybrid"],
                         help="仿真场景 (default: driving)")
     parser.add_argument("--duration", type=int, default=0,
                         help="运行时长（秒），0=无限 (default: 0)")

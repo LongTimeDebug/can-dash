@@ -134,8 +134,8 @@ ApplicationWindow {
     // ─── 左侧：转速表 ───
     GaugeCanvas {
         id: rpmGauge
-        x: 60; y: 180
-        width: 380; height: 380
+        x: 70; y: 130
+        width: 340; height: 340
         minValue: 0; maxValue: 8000
         value: 0
         unit: dashboard.tr("unit.rpm")
@@ -244,11 +244,11 @@ ApplicationWindow {
     }
 
     // ─── 底部中央：能量流图 + 历史曲线 + 派生指标 ───
-    // 能量流图（440x180 合理高度，与底部状态栏不重叠）
+    // 能量流图（380x140 紧贴 RPM 表下方，不与底部状态栏重叠）
     EnergyFlowDiagram {
         id: energyFlow
-        x: 80; y: 440
-        width: 440; height: 180
+        x: 60; y: 510
+        width: 380; height: 140
 
         // 通过 Connections 绑定到 displayData
         energyMode:    dashboard.displayData["energy_mode"]   || 0

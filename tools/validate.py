@@ -349,6 +349,91 @@ def validate_vehicle_thresholds(result: ValidationResult):
             )
 
 
+def validate_limp_home(result: ValidationResult):
+    """校验 limp_home.yaml (跛行模式配置)
+
+    检查:
+    1. JSON Schema (字段类型 + 取值范围) — 借 jsonschema 库
+    2. 业务逻辑不变量 (timeout_ms L1 < L2 < L3, 关键信号存在于 can_ids.yaml)
+    """
+    data = load_yaml("limp_home.yaml")
+    limp = data.get("limp_home")
+    if not limp:
+        result.add_error(
+            "limp_home.yaml", "limp_home",
+            "limp_home 节点缺失或为空"
+        )
+        return
+
+    # ── JSON Schema 校验 ──
+    schema_path = SCHEMA_DIR / "limp_home.schema.json"
+    if schema_path.exists():
+        if not _HAS_JSONSCHEMA:
+            result.add_warning(
+                "jsonschema 未安装, 跳过 limp_home schema 校验 (pip install jsonschema)"
+            )
+        else:
+            try:
+                with open(schema_path) as f:
+                    schema = json.load(f)
+                jsonschema.validate(data, schema)
+            except jsonschema.ValidationError as e:
+                result.add_error(
+                    "limp_home.yaml",
+                    f"limp_home.{'.'.join(str(p) for p in e.absolute_path)}",
+                    e.message
+                )
+    else:
+        result.add_warning(
+            "schemas/limp_home.schema.json 不存在, 跳过 schema 校验"
+        )
+
+    # ── 业务逻辑不变量 ──
+    t1 = limp.get("trigger_l1", {})
+    t2 = limp.get("trigger_l2", {})
+    t3 = limp.get("trigger_l3", {})
+
+    # L1 < L2 < L3: 越深的跛行需要越长的超时 (避免 L3 比 L1 先触发)
+    t1_ms = t1.get("timeout_ms", 0)
+    t2_ms = t2.get("timeout_ms", 0)
+    t3_ms = t3.get("timeout_ms", 0)
+    if t1_ms and t2_ms and t1_ms >= t2_ms:
+        result.add_error(
+            "limp_home.yaml", "limp_home.trigger_l2.timeout_ms",
+            f"L2 timeout ({t2_ms}ms) 必须 > L1 ({t1_ms}ms)",
+            "跛行等级应按超时时长递进, 否则 L2 会比 L1 先触发"
+        )
+    if t2_ms and t3_ms and t2_ms >= t3_ms:
+        result.add_error(
+            "limp_home.yaml", "limp_home.trigger_l3.timeout_ms",
+            f"L3 timeout ({t3_ms}ms) 必须 > L2 ({t2_ms}ms)",
+            "跛行等级应按超时时长递进"
+        )
+
+    # L3.min_timeout_signals 应 >= 实际 critical_signals 数量
+    crit = t1.get("critical_signals", [])
+    if isinstance(t3.get("min_timeout_signals"), int) and crit:
+        if t3["min_timeout_signals"] < len(crit):
+            result.add_warning(
+                f"limp_home.yaml: trigger_l3.min_timeout_signals={t3['min_timeout_signals']} "
+                f"小于 critical_signals 数量 ({len(crit)}), 需全部超时才能触发 L3"
+            )
+
+    # 关键信号必须在 can_ids.yaml 定义 (跨文件引用)
+    can_data = load_yaml("can_ids.yaml")
+    defined_keys = set()
+    for src in can_data.get("can_sources", []):
+        for f in src.get("fields", []):
+            defined_keys.add(f["name"])
+    for sig in crit:
+        if sig not in defined_keys:
+            result.add_error(
+                "limp_home.yaml",
+                f"limp_home.trigger_l1.critical_signals[{sig}]",
+                f"关键信号 '{sig}' 在 can_ids.yaml 中未定义"
+            )
+
+
 def validate_cross_references(result: ValidationResult):
     """跨文件引用校验"""
     alarm_data = load_yaml("alarm_rules.yaml")
@@ -460,6 +545,7 @@ def validate_all() -> ValidationResult:
     validate_indicators(result)
     validate_display_layout(result)
     validate_vehicle_thresholds(result)  # v3 探针
+    validate_limp_home(result)  # limp_home 跛行模式
     validate_cross_references(result)
     validate_display_key_three_way(result)
     return result

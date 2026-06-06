@@ -82,6 +82,7 @@ private:
     const SignalMonitorDef* m_table = nullptr;
     SignalState* m_states = nullptr;
     float m_historyPool[MAX_SIGNAL_MONITORS][MAX_SIGNAL_HISTORY] = {};  // 静态 history 池，0 初始化
+    int m_poolUsed = 0;                                                // 已分配的 pool 槽位数（≤ MAX_SIGNAL_MONITORS）
     int m_count = 0;
     uint64_t m_lastTickMs = 0;
 };

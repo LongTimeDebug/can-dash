@@ -8,13 +8,24 @@ CanSignalMonitor::CanSignalMonitor(const MonitorCallbacks& cb)
     : m_cb(cb) {}
 
 CanSignalMonitor::~CanSignalMonitor() {
-    // history is allocated from static m_historyPool, not heap — no delete needed
+    // m_states 是 init() 中 new[] 出来的，必须释放
+    // m_historyPool 是类的静态成员数组，生命周期 = 对象生命周期，无需释放
     delete[] m_states;
+    m_states = nullptr;
 }
 
 void CanSignalMonitor::init(const SignalMonitorDef* table, int table_count) {
     m_table = table;
     m_count = table_count;
+
+    // 重新 init 安全性：先释放旧的 m_states（pool 是静态数组，无需释放）
+    if (m_states) {
+        delete[] m_states;
+        m_states = nullptr;
+    }
+    m_poolUsed = 0;  // 每次 init 重置 pool 游标
+
+    if (table_count <= 0) return;
     m_states = new SignalState[table_count]();
 
     for (int i = 0; i < table_count; i++) {
@@ -26,9 +37,21 @@ void CanSignalMonitor::init(const SignalMonitorDef* table, int table_count) {
         m_states[i].lastUpdateMs = 0;
         m_states[i].firstSeenMs = 0;
         m_states[i].received = false;
-        m_states[i].historyCount = table[i].smoothing_window > 0 ? table[i].smoothing_window : 0;
-        m_states[i].history = m_states[i].historyCount > 0 ? new float[m_states[i].historyCount]() : nullptr;
         m_states[i].historyIndex = 0;
+
+        // 平滑窗口从静态池分配，禁止 new[] 堆分配（避免析构时泄漏）
+        // window 必须同时：smoothing 启用 + 1..MAX_SIGNAL_HISTORY + 池有剩余槽位
+        uint8_t win = table[i].smoothing_window;
+        if (table[i].smoothing && win > 0 && win <= MAX_SIGNAL_HISTORY &&
+            m_poolUsed < MAX_SIGNAL_MONITORS) {
+            m_states[i].history = m_historyPool[m_poolUsed];
+            m_states[i].historyCount = win;
+            m_poolUsed++;
+        } else {
+            // 不启用平滑（smoothing=false / window=0 / window 超限 / 池满）
+            m_states[i].history = nullptr;
+            m_states[i].historyCount = 0;
+        }
     }
 }
 

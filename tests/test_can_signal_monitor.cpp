@@ -118,6 +118,93 @@ int main() {
     }  // 析构
     printf("  ✓ 析构不崩溃\n");
 
+    // ─── 测试10：重新 init() 不泄漏（m_states 旧指针必须先 delete） ───
+    printf("\n[测试10] 重新 init() 安全\n");
+    {
+        CanSignalMonitor m3(cb);
+        m3.init(table, table_count);
+        m3.onCanFrame(0x186040F3, 350.0f);
+        // 第二次 init 必须正确释放旧 m_states
+        m3.init(table, table_count);
+        assert(m3.getQuality("bat_volt") == SIGNAL_NEVER_RECEIVED);  // 重置
+        m3.onCanFrame(0x186040F3, 360.0f);
+        assert(m3.getQuality("bat_volt") == SIGNAL_GOOD);
+        // 第三次 init
+        m3.init(table, table_count);
+        m3.onCanFrame(0x186040F3, 370.0f);
+    }  // 析构
+    printf("  ✓ 重新 init() 不崩溃、不泄漏旧 m_states\n");
+
+    // ─── 测试11：smoothing_window > MAX_SIGNAL_HISTORY 时自动禁用平滑 ───
+    printf("\n[测试11] 大窗口安全降级\n");
+    {
+        static const SignalMonitorDef bigwin_table[] = {
+            // window=255 远超 MAX_SIGNAL_HISTORY=16
+            {"big_volt", 0x186040FF, 500, 0.0f, 500.0f, 100.0f, true, 255},
+        };
+        CanSignalMonitor m4(cb);
+        m4.init(bigwin_table, 1);
+        m4.onCanFrame(0x186040FF, 100.0f);
+        // window 超限时 history=nullptr，smoothedValue == lastValue
+        assert(m4.getQuality("big_volt") == SIGNAL_GOOD);
+        // smoothed = 100.0（无平滑时等于 lastValue）
+        assert(m4.getSmoothedValue("big_volt") > 99.9f && m4.getSmoothedValue("big_volt") < 100.1f);
+    }
+    printf("  ✓ smoothing_window 超限时自动禁用平滑（无堆分配）\n");
+
+    // ─── 测试12：smoothing=false 时不分配 history ───
+    printf("\n[测试12] smoothing=false 不分配 history\n");
+    {
+        static const SignalMonitorDef nosmooth_table[] = {
+            {"nosmooth", 0x186040FE, 500, 0.0f, 500.0f, 100.0f, false, 0},
+        };
+        CanSignalMonitor m5(cb);
+        m5.init(nosmooth_table, 1);
+        m5.onCanFrame(0x186040FE, 200.0f);
+        assert(m5.getSmoothedValue("nosmooth") > 199.9f && m5.getSmoothedValue("nosmooth") < 200.1f);
+    }
+    printf("  ✓ smoothing=false 时 history=nullptr，smoothed == lastValue\n");
+
+    // ─── 测试13：池满时多余信号禁用平滑 ───
+    printf("\n[测试13] 池满降级\n");
+    {
+        // 制造 33 个启用平滑的信号（MAX_SIGNAL_MONITORS=32），第 33 个应被降级
+        // 注意：每个信号必须用唯一 name，否则 getQuality/getSmoothedValue 只能查到第一个
+        // name 是 const char*，必须指向稳定内存（用静态 buffer 数组）
+        static char names[33][16];
+        SignalMonitorDef dyn_table[33];
+        for (int i = 0; i < 33; i++) {
+            snprintf(names[i], sizeof(names[i]), "pool_%02d", i);
+            dyn_table[i].name = names[i];
+            dyn_table[i].can_id = 0x18605200u + (uint32_t)i;
+            dyn_table[i].timeout_ms = 500;
+            dyn_table[i].min_value = 0.0f;
+            dyn_table[i].max_value = 100.0f;
+            dyn_table[i].max_delta = 50.0f;
+            dyn_table[i].smoothing = true;
+            dyn_table[i].smoothing_window = 4;
+        }
+        CanSignalMonitor m6(cb);
+        m6.init(dyn_table, 33);
+        // 33 个信号中前 32 个有平滑，第 33 个（pool_32）降级（pool 已满）
+        m6.onCanFrame(0x18605220, 80.0f);  // i=32，第 33 个的 can_id
+        // 第 33 个拿到 pool 失败 → history=nullptr → smoothed == lastValue
+        assert(m6.getSmoothedValue("pool_32") > 79.9f && m6.getSmoothedValue("pool_32") < 80.1f);
+        // 前 32 个中任意一个有平滑（4 个样本中 1 个=80，3 个=0 → smoothed=20）
+        m6.onCanFrame(0x18605200, 80.0f);  // pool_00
+        assert(m6.getSmoothedValue("pool_00") > 19.9f && m6.getSmoothedValue("pool_00") < 20.1f);
+    }
+    printf("  ✓ 池满（第 33 个信号）安全降级，前 32 个平滑正常\n");
+
+    // ─── 测试14：table_count=0 不分配 ───
+    printf("\n[测试14] 空表安全\n");
+    {
+        CanSignalMonitor m7(cb);
+        m7.init(nullptr, 0);  // 必须不崩溃
+        assert(m7.getQuality("anything") == SIGNAL_NEVER_RECEIVED);
+    }
+    printf("  ✓ table_count=0 边界安全\n");
+
     printf("\n所有测试通过。\n");
     return 0;
 }

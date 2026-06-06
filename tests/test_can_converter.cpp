@@ -1,13 +1,22 @@
 // test_can_converter.cpp
 // Layer 2 CanConverter 单元测试（纯 C++，无 Qt）
 //
-// ⚠️ 已知 bug (PR 22 测试发现, 2026-06-04):
-//   can_converter.cpp 的 switch 跟 CAN_FIELD_TABLE 错位:
-//     case 0/1/2: bat_volt/bat_curr/bat_soc 正确
-//     case 3..9:  写到 DisplayData[N+3] (off-by-3, 跳过 battery_temp/vehicle_speed/brake)
-//     case 10/11: DisplayData 没有这俩字段 (写不到任何成员)
-//   当前 CanConverter::processFrame 是死代码 (shm_data_source.cpp 直接读 shm, 不经 CanConverter),
-//   所以这个 bug 不影响生产. 但 yaml_to_c.py 后续若想接 CanConverter 到数据流, 必须先修.
+// ✅ 历史 off-by-3 bug 已修复 (commit ad52296, 2026-06-06):
+//   can_converter.cpp 的 switch 现已与 CAN_FIELD_TABLE 28 项完全对齐:
+//     case  0: bat_volt            case 14: engine_rpm
+//     case  1: bat_curr            case 15: engine_fault
+//     case  2: bat_soc             case 16: charge_status
+//     case  3: battery_temp        case 17: charge_fault
+//     case  4: vehicle_speed       case 18: charge_power
+//     case  5: brake               case 19: energy_mode
+//     case  6: motor_rpm           case 20: ev_range
+//     case  7: motor_temp          case 21: fuel_level
+//     case  8: driver_occupied     case 22: fuel_range
+//     case  9: passenger_occupied  case 23: gear_status
+//     case 10: driver_buckled      case 24-27: tire_pressure_*
+//     case 11: passenger_buckled
+//     case 12: rear_buckle
+//     case 13: out-of-range, no-op (HYBRID/CHARGE/LIMP_HOME/TIRE 字段未在 DisplayData 暴露)
 //
 // 覆盖:
 //   1.  init 装载 28 字段表
@@ -19,13 +28,13 @@
 //   7.  applyScaleOffset scale=0.1 offset=-1000 (bat_curr 零报文 → -1000A)
 //   8.  processFrame 错 can_id → mask=0, 字段不变
 //   9.  processFrame 短帧 (len < byte_end+1) → 字段跳过
-//  10.  processFrame BMS_Frame (0x186040F3) 触发 case 0/1/2 → bat_volt/bat_curr/bat_soc 正确
-//  11.  processFrame 错位 bug: BMS_Frame case 3 写 motor_rpm (不是 battery_temp)
-//  12.  processFrame 错位 bug: vehicle_speed 帧 case 4 写 motor_temp (不是 vehicle_speed)
-//  13.  processFrame bit 字段 (can_id 752) 错位 → passenger_buckled 而非 driver_occupied
+//  10.  processFrame BMS_Frame (0x186040F3) case 0-3 → bat_volt/bat_curr/bat_soc/battery_temp 全部正确
+//  11.  processFrame vehicle_speed 帧 (can_id 515) case 4-5 → vehicle_speed/brake 正确
+//  12.  processFrame bit 字段 (can_id 752) case 8 → driver_occupied 正确
+//  13.  processFrame motor 帧 (can_id 257) case 6-7 → motor_rpm/motor_temp 正确
 //  14.  processFrame 错 can_id 跨帧不互踩
 //  15.  endian 同输入不同结果
-//  16.  updated_mask 反映 case 0-11 都触发 (BMS 4 字段触发 bit 0/1/2/3)
+//  16.  updated_mask 反映 case 0-12 都触发 (BMS 4 字段触发 bit 0/1/2/3)
 
 #include <cstdio>
 #include <cstring>
@@ -47,18 +56,9 @@ static int g_test_passed = 0;
     }                                                               \
 } while(0)
 
-// 文档化已知 bug: 实际 switch 行为 (不要假装代码正确)
-#define TEST_KNOWN_BUG(actual, expected, bug_desc) do {             \
-    g_test_count++;                                                 \
-    if ((actual) == (expected)) {                                   \
-        g_test_passed++;                                            \
-        printf("  ✓ %s\n", bug_desc);                               \
-    } else {                                                        \
-        /* 已知 bug: 测试记录现状, 不当 fail */                     \
-        g_test_passed++;                                            \
-        printf("  ⚠ KNOWN BUG: %s (实际 != 期望, 见 PR 22 commit)\n", bug_desc); \
-    }                                                               \
-} while(0)
+// 注: 历史 TEST_KNOWN_BUG 宏已移除 — off-by-3 bug 在 commit ad52296 修复后,
+//     所有受影响的字段都已正常路由. 若未来发现新 bug 需要文档化, 可参考 git history
+//     重新引入该宏.
 
 // 工具: 找 CAN_FIELD_TABLE 中 display_key 对应的 entry
 static const CanFieldDef* findDef(const char* name) {
@@ -178,62 +178,79 @@ static void test_processFrame_bms_correct_cases() {
     TEST_ASSERT(out.bat_soc == 75, "case 2 → bat_soc = 75%");
 }
 
-// 9. processFrame BMS_Frame 错位 bug (case 3 写到 motor_rpm 不是 battery_temp)
-static void test_processFrame_bms_buggy_case_3() {
+// 9. processFrame BMS_Frame case 3 (battery_temp 修复后正确)
+static void test_processFrame_bms_case_3_battery_temp() {
     CanConverter cvt;
     cvt.init(CAN_FIELD_TABLE, CAN_FIELD_TABLE_COUNT);
-    // BMS byte[5] = 0x32 = 50, table[3] = battery_temp (期望 case 3 写 battery_temp=50)
-    // 但 switch case 3 写 motor_rpm → motor_rpm = 50, battery_temp = 0 (漏写)
+    // BMS byte[5] = 0x32 = 50, table[3] = battery_temp, scale=1.0
+    // 修复后: case 3 写 battery_temp = 50 (而非误写 motor_rpm)
     uint8_t data[8] = {0xD8, 0x05, 0x00, 0x00, 0x4B, 0x32, 0x00, 0x00};
     DisplayData out = {};
     cvt.processFrame(408961267, data, sizeof(data), out);
 
-    // 文档化: 实际行为 (buggy)
-    TEST_KNOWN_BUG(out.motor_rpm, (int16_t)50,
-                   "case 3 写 motor_rpm (应是 battery_temp) — off-by-3 bug");
-    TEST_ASSERT(out.battery_temp == 0,
-                "battery_temp 漏写 (switch case 3 跳到 motor_rpm, 没人写 battery_temp)");
+    // 修复后: case 3 正确写到 battery_temp
+    TEST_ASSERT(out.battery_temp == 50, "case 3 → battery_temp = 50 (修复后正确)");
+    TEST_ASSERT(out.motor_rpm == 0,
+                "case 3 不再误写 motor_rpm (修复后 motor_rpm 保持 0)");
 
-    // updated_mask bit 3 仍 set (case 3 命中, 写到了 motor_rpm)
-    // 重新跑拿 mask
+    // updated_mask bit 3 仍 set (case 3 命中, 写到 battery_temp)
     out = {};
     uint32_t mask = cvt.processFrame(408961267, data, sizeof(data), out);
     TEST_ASSERT(mask & (1U << 3), "updated_mask bit 3 仍 set (case 3 命中)");
     TEST_ASSERT(mask == 0x0F, "BMS_Frame 触发 case 0/1/2/3, mask = 0x0F");
 }
 
-// 10. processFrame vehicle_speed 帧错位 (case 4 写 motor_temp 不是 vehicle_speed)
-static void test_processFrame_vehicle_speed_bug() {
+// 10. processFrame vehicle_speed 帧 case 4 (vehicle_speed 修复后正确)
+static void test_processFrame_vehicle_speed_case_4() {
     CanConverter cvt;
     cvt.init(CAN_FIELD_TABLE, CAN_FIELD_TABLE_COUNT);
     // vehicle_speed: can_id 515, bytes 3-4 LE 16-bit, scale 0.1
     // data[3..4] = 0x10 0x27 → LE 0x2710 = 10000 → 1000.0 km/h
-    // 但 case 4 写 motor_temp, 所以 vehicle_speed 保持 0, motor_temp = 1000
+    // 修复后: case 4 正确写 vehicle_speed = 1000.0
+    // data[2] = 0x00 → case 5 写 brake = 0
     uint8_t data[8] = {0x00, 0x00, 0x00, 0x10, 0x27, 0x00, 0x00, 0x00};
     DisplayData out = {};
     cvt.processFrame(515, data, sizeof(data), out);
 
-    TEST_ASSERT(out.vehicle_speed == 0.0f,
-                "vehicle_speed 漏写 (case 4 写到 motor_temp) — off-by-3 bug");
-    TEST_KNOWN_BUG(out.motor_temp, (uint8_t)1000,
-                   "case 4 写 motor_temp (应是 vehicle_speed) — bug");
+    TEST_ASSERT(out.vehicle_speed > 999.9f && out.vehicle_speed < 1000.1f,
+                "case 4 → vehicle_speed = 1000.0 km/h (修复后正确)");
+    TEST_ASSERT(out.motor_temp == 0,
+                "case 4 不再误写 motor_temp (修复后 motor_temp 保持 0)");
+    TEST_ASSERT(out.brake == 0, "case 5 → brake = 0 (byte 2 = 0x00, scale 0.4 → 0)");
 }
 
-// 11. processFrame bit 字段错位 (driver_occupied → passenger_buckled)
-static void test_processFrame_bit_field_bug() {
+// 11. processFrame bit 字段 case 8 (driver_occupied 修复后正确)
+static void test_processFrame_driver_occupied_case_8() {
     CanConverter cvt;
     cvt.init(CAN_FIELD_TABLE, CAN_FIELD_TABLE_COUNT);
-    // driver_occupied: can_id 752, table[8], case 8 → 写 passenger_buckled
+    // driver_occupied: can_id 752, table[8], case 8 → driver_occupied (修复后)
     uint8_t data[1] = {0x01};
     DisplayData out = {};
     cvt.processFrame(752, data, sizeof(data), out);
 
-    TEST_ASSERT(out.driver_occupied == 0, "driver_occupied 漏写 (case 8 写到 passenger_buckled)");
-    TEST_KNOWN_BUG(out.passenger_buckled, (uint8_t)1,
-                   "case 8 写 passenger_buckled (应是 driver_occupied) — off-by-3 bug");
+    TEST_ASSERT(out.driver_occupied == 1,
+                "case 8 → driver_occupied = 1 (修复后正确写到 driver_occupied)");
+    TEST_ASSERT(out.passenger_buckled == 0,
+                "case 8 不再误写 passenger_buckled (修复后 passenger_buckled 保持 0)");
 }
 
-// 12. 跨帧不互踩
+// 12. processFrame motor 帧 case 6/7 (motor_rpm/motor_temp 修复后正确)
+static void test_processFrame_motor_case_6_7() {
+    CanConverter cvt;
+    cvt.init(CAN_FIELD_TABLE, CAN_FIELD_TABLE_COUNT);
+    // motor_rpm: can_id 257, table[6], case 6, byte 0-1 LE 16-bit, scale 1.0
+    // motor_temp: can_id 257, table[7], case 7, byte 4, 8-bit, scale 1.0
+    // data[0..1] = 0x54 0x0B → LE 0x0B54 = 2900 → motor_rpm = 2900
+    // data[4] = 0x5A = 90 → motor_temp = 90
+    uint8_t data[8] = {0x54, 0x0B, 0x00, 0x00, 0x5A, 0x00, 0x00, 0x00};
+    DisplayData out = {};
+    cvt.processFrame(257, data, sizeof(data), out);
+
+    TEST_ASSERT(out.motor_rpm == 2900, "case 6 → motor_rpm = 2900 (修复后正确)");
+    TEST_ASSERT(out.motor_temp == 90, "case 7 → motor_temp = 90 (修复后正确)");
+}
+
+// 13. 跨帧不互踩
 static void test_processFrame_cross_frame_isolation() {
     CanConverter cvt;
     cvt.init(CAN_FIELD_TABLE, CAN_FIELD_TABLE_COUNT);
@@ -274,8 +291,9 @@ static void test_processFrame_all_zero() {
 }
 
 int main() {
-    printf("=== CanConverter 单元测试 (PR 22) ===\n");
-    printf("⚠️  含已知 off-by-3 bug 文档化 (case 3-9 错位, case 10/11 无目标)\n\n");
+    printf("=== CanConverter 单元测试 (PR 22 + ad52296 fix) ===\n");
+    printf("✅ off-by-3 bug 已修复 (commit ad52296, 2026-06-06)\n");
+    printf("   28 字段 case 索引与 CAN_FIELD_TABLE 完全对齐\n\n");
 
     test_init_and_find();
     test_extractRaw_little_endian();
@@ -285,9 +303,10 @@ int main() {
     test_processFrame_wrong_can_id();
     test_processFrame_short_data();
     test_processFrame_bms_correct_cases();
-    test_processFrame_bms_buggy_case_3();
-    test_processFrame_vehicle_speed_bug();
-    test_processFrame_bit_field_bug();
+    test_processFrame_bms_case_3_battery_temp();
+    test_processFrame_vehicle_speed_case_4();
+    test_processFrame_driver_occupied_case_8();
+    test_processFrame_motor_case_6_7();
     test_processFrame_cross_frame_isolation();
     test_endian_inverts_byte_order();
     test_processFrame_all_zero();

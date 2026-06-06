@@ -250,6 +250,167 @@ int main() {
     }
     printf("  ✓ 正常车速 (含边界) 不受影响\n");
 
+    // ─── 测试16：驾驶模式自动检测 — ECO 触发 + 滞后 ───
+    printf("\n[测试16] 驾驶模式自动检测 — ECO 触发 + 滞后 3000ms\n");
+    {
+        VehicleLogic vl;
+        vl.init(&config);
+        // 默认 NORMAL
+        assert(vl.getDriveMode() == DRIVE_MODE_NORMAL);
+        assert(!vl.isDriveModeManual());
+
+        // 注入 ECO 条件: |power|<5kW, speed<60km/h
+        vl.onPowerUpdate(2.0f);
+        vl.onSpeedUpdate(30.0f, true);
+        vl.onMotorRpmUpdate(1000);
+
+        const uint64_t t0 = candash::now_monotonic_ms();
+
+        // t0+1s: 首次 tick, candidate=ECO, since=t0+1s
+        vl.tick(t0 + 1000);
+        assert(vl.getDriveMode() == DRIVE_MODE_NORMAL);
+        printf("  ✓ t0+1s, 候选 ECO 保持中, 仍 NORMAL\n");
+
+        // t0+2.5s: 候选 ECO 保持 1.5s, 未达 3s 滞后
+        vl.tick(t0 + 2500);
+        assert(vl.getDriveMode() == DRIVE_MODE_NORMAL);
+
+        // t0+4.1s: 候选 ECO 保持 3.1s, 滞后满足, 切到 ECO
+        vl.tick(t0 + 4100);
+        assert(vl.getDriveMode() == DRIVE_MODE_ECO);
+        assert(strcmp(vl.getDriveModeStr(), "ECO") == 0);
+        printf("  ✓ t0+4.1s, 滞后满足, 切到 ECO\n");
+
+        // 退出 ECO 条件: 功率突然增大 → candidate=NORMAL, 重置滞后
+        vl.onPowerUpdate(20.0f);
+        vl.tick(t0 + 5000);
+        // candidate=NORMAL 刚建立, since=t0+5s, 未到 3s
+        assert(vl.getDriveMode() == DRIVE_MODE_ECO);  // 仍 ECO, 因为 NORMAL 候选没保持够
+        vl.tick(t0 + 8200);
+        // candidate=NORMAL 保持 3.2s, 滞后满足, 切到 NORMAL
+        assert(vl.getDriveMode() == DRIVE_MODE_NORMAL);
+        printf("  ✓ 功率突增 → 3s 后回 NORMAL\n");
+    }
+
+    // ─── 测试17：驾驶模式自动检测 — SPORT 触发 (强放电) ───
+    printf("\n[测试17] 驾驶模式自动检测 — SPORT 触发 (charge_power < -15kW)\n");
+    {
+        VehicleLogic vl;
+        vl.init(&config);
+        vl.onSpeedUpdate(80.0f, true);
+        vl.onPowerUpdate(-20.0f);  // 强放电
+        vl.onMotorRpmUpdate(2000);
+
+        const uint64_t t0 = candash::now_monotonic_ms();
+        vl.tick(t0 + 1000);   // candidate=SPORT, since=t0+1s
+        assert(vl.getDriveMode() == DRIVE_MODE_NORMAL);
+        vl.tick(t0 + 4500);   // candidate SPORT 保持 3.5s, 切到 SPORT
+        assert(vl.getDriveMode() == DRIVE_MODE_SPORT);
+        assert(strcmp(vl.getDriveModeStr(), "SPORT") == 0);
+        printf("  ✓ 强放电 3.5s 后切到 SPORT\n");
+
+        // 功率回正 → 切回 NORMAL
+        vl.onPowerUpdate(2.0f);
+        vl.tick(t0 + 5500);
+        vl.tick(t0 + 8700);
+        assert(vl.getDriveMode() == DRIVE_MODE_NORMAL);
+        printf("  ✓ 功率正常 → 3s 后回 NORMAL\n");
+    }
+
+    // ─── 测试18：驾驶模式自动检测 — SPORT 触发 (高速+高RPM) ───
+    printf("\n[测试18] 驾驶模式自动检测 — SPORT (speed>100 AND rpm>3000)\n");
+    {
+        VehicleLogic vl;
+        vl.init(&config);
+        // 中等功率, 高速 + 高 RPM
+        vl.onSpeedUpdate(120.0f, true);
+        vl.onPowerUpdate(-5.0f);
+        vl.onMotorRpmUpdate(3500);
+
+        const uint64_t t0 = candash::now_monotonic_ms();
+        vl.tick(t0 + 1000);
+        assert(vl.getDriveMode() == DRIVE_MODE_NORMAL);
+        vl.tick(t0 + 4500);
+        assert(vl.getDriveMode() == DRIVE_MODE_SPORT);
+        printf("  ✓ 高速+高RPM 3.5s 后切到 SPORT\n");
+    }
+
+    // ─── 测试19：驾驶模式手动覆盖 — 锁定 + 不被自动覆盖 ───
+    printf("\n[测试19] 驾驶模式手动覆盖 — 锁定后 tick 不再自动切换\n");
+    {
+        VehicleLogic vl;
+        vl.init(&config);
+        vl.setDriveMode(DRIVE_MODE_ECO, true);  // 手动锁定 ECO
+        assert(vl.getDriveMode() == DRIVE_MODE_ECO);
+        assert(vl.isDriveModeManual());
+
+        // 即使给了 SPORT 条件, 也不切
+        const uint64_t t0 = candash::now_monotonic_ms();
+        vl.onSpeedUpdate(120.0f, true);
+        vl.onPowerUpdate(-30.0f);
+        vl.onMotorRpmUpdate(4000);
+        vl.tick(t0 + 5000);
+        assert(vl.getDriveMode() == DRIVE_MODE_ECO);
+        printf("  ✓ 手动 ECO 锁定, 强 SPORT 条件仍不切换\n");
+
+        // 解除手动 (manual=false) → 恢复自动
+        vl.setDriveMode(DRIVE_MODE_NORMAL, false);
+        assert(!vl.isDriveModeManual());
+        assert(vl.getDriveMode() == DRIVE_MODE_NORMAL);
+        // 当前条件是 SPORT (speed=120, power=-30, rpm=4000)
+        // setDriveMode 复位了 sinceMs=0, 所以下一个 tick 立即接受一次 SPORT 作为 baseline
+        vl.tick(t0 + 5500);
+        assert(vl.getDriveMode() == DRIVE_MODE_NORMAL);  // baseline 接受了 SPORT, 但 m_driveMode 仍 NORMAL
+        vl.tick(t0 + 9000);
+        // candidate=SPORT 已保持 3.5s, 切到 SPORT
+        assert(vl.getDriveMode() == DRIVE_MODE_SPORT);
+        printf("  ✓ manual=false 后 tick 重新参与自动检测, 强条件 3.5s 后切到 SPORT\n");
+    }
+
+    // ─── 测试20：驾驶模式 — 滞后内抖动不切换 ───
+    printf("\n[测试20] 驾驶模式 — 滞后内抖动不切换\n");
+    {
+        VehicleLogic vl;
+        vl.init(&config);
+        vl.onSpeedUpdate(30.0f, true);
+        vl.onPowerUpdate(2.0f);  // ECO
+
+        const uint64_t t0 = candash::now_monotonic_ms();
+        vl.tick(t0 + 1000);
+        vl.tick(t0 + 4500);  // 切到 ECO
+        assert(vl.getDriveMode() == DRIVE_MODE_ECO);
+
+        // 在滞后窗口内 (3s) 抖动: ECO -> NORMAL -> ECO
+        // candidate=NORMAL 重新开始计时, 但未满 3s 就变回 ECO
+        vl.onPowerUpdate(10.0f);
+        vl.tick(t0 + 5000);  // candidate=NORMAL, since=t0+5s
+        assert(vl.getDriveMode() == DRIVE_MODE_ECO);  // 仍 ECO (未到滞后)
+        vl.onPowerUpdate(2.0f);
+        vl.tick(t0 + 6000);  // candidate 变回 ECO, 重置
+        assert(vl.getDriveMode() == DRIVE_MODE_ECO);
+        printf("  ✓ 滞后窗口内抖动不切换模式\n");
+    }
+
+    // ─── 测试21：驾驶模式 — onPowerUpdate NaN/Inf 拒绝 ───
+    printf("\n[测试21] 驾驶模式 — onPowerUpdate NaN/Inf 拒绝, 保留 m_powerKw\n");
+    {
+        VehicleLogic vl;
+        vl.init(&config);
+        vl.onPowerUpdate(3.0f);
+        assert(vl.getDriveMode() == DRIVE_MODE_NORMAL);
+        // 注入 NaN — 期望: 拒绝, 保持 3.0
+        vl.onPowerUpdate(std::nanf(""));
+        vl.onPowerUpdate(std::numeric_limits<float>::infinity());
+        vl.onPowerUpdate(-std::numeric_limits<float>::infinity());
+        // 通过构造 ECO 条件 (|3.0|<5, speed<60) 验证 m_powerKw 仍是 3.0
+        vl.onSpeedUpdate(30.0f, true);
+        const uint64_t t0 = candash::now_monotonic_ms();
+        vl.tick(t0 + 1000);
+        vl.tick(t0 + 4500);
+        assert(vl.getDriveMode() == DRIVE_MODE_ECO);
+        printf("  ✓ NaN/±Inf 被拒绝, m_powerKw 保留 3.0, 自动检测仍按 3.0 走\n");
+    }
+
     printf("\n所有测试通过。\n");
     return 0;
 }

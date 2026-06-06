@@ -11,6 +11,24 @@
 #include <cmath>
 #include <algorithm>
 
+// ── 驾驶模式自动检测阈值 (v3+ 增量) ──────────────────────
+// 这些阈值暂未迁入 yaml (PR 后续可仿照 vehicle_thresholds.yaml 增加 driving_modes 段),
+// 保持硬编码常量的好处: 编译期内联, 单元测试可直接覆盖 kDriveModeHysteresisMs 引用;
+// 迁移到 yaml 时只需把 namespace 改成 "kDriveModeConfig" 的 VehicleConfigDef 成员即可.
+namespace {
+// 滞后时间: 候选模式需保持此时间才允许切换 (避免短时负载波动导致模式频繁切换)
+constexpr uint64_t kDriveModeHysteresisMs = 3000;
+
+// ECO 阈值: |功率| 小 且 车速低 → 平稳驾驶
+constexpr float kEcoPowerKw = 5.0f;   // |charge_power| < 5kW
+constexpr float kEcoSpeedKmh = 60.0f; // speed < 60 km/h
+
+// SPORT 阈值: 强放电 或 (高速 + 高 RPM)
+constexpr float kSportDischargeKw = -15.0f;  // 强放电 (charge_power < -15kW)
+constexpr float kSportSpeedKmh = 100.0f;     // 高速阈值
+constexpr int16_t kSportRpm = 3000;          // 高 RPM 阈值
+} // namespace
+
 VehicleLogic::VehicleLogic()
     : m_speed(0.0f)
     , m_speedValid(false)
@@ -35,6 +53,9 @@ void VehicleLogic::init(const VehicleConfigDef* config) {
         // v3 探针: nullptr 走 yaml 生成的默认值, 不再硬编码
         m_config = kDefaultVehicleConfig;
     }
+    // 驾驶模式自动检测状态在 init 时重置 (避免跨场景残留候选)
+    m_driveModeCandidate = m_driveMode;
+    m_driveModeCandidateSinceMs = 0;
 }
 
 void VehicleLogic::onSpeedUpdate(float speed, bool valid) {
@@ -159,8 +180,73 @@ void VehicleLogic::tick(uint64_t now_ms) {
         m_readyGoActive = false;
     }
 
-    // ─── 驾驶模式切换 ───
-    // 可扩展：根据油门/刹车/车速判断驾驶模式（ECO/NORMAL/SPORT）
+    // ─── 驾驶模式切换 (PR 增量) ───
+    // 自动检测: 根据 speed + power + rpm 推断 ECO/NORMAL/SPORT, 滞后 3000ms 防抖
+    // 手动覆盖: m_driveModeManual=true 时跳过自动, tick 只更新 m_lastTickMs
+    if (!m_driveModeManual) {
+        DriveMode candidate = detectAutoDriveMode();
+
+        // 首次进入 (m_driveModeCandidateSinceMs == 0): 直接接受当前 candidate 作为基准
+        if (m_driveModeCandidateSinceMs == 0) {
+            m_driveModeCandidate = candidate;
+            m_driveModeCandidateSinceMs = now_ms;
+        } else if (candidate != m_driveModeCandidate) {
+            // 候选变了, 重置滞后计时器
+            m_driveModeCandidate = candidate;
+            m_driveModeCandidateSinceMs = now_ms;
+        } else if (candidate != m_driveMode &&
+                   (now_ms - m_driveModeCandidateSinceMs) >= kDriveModeHysteresisMs) {
+            // 候选保持 3s, 触发切换 + 广播事件
+            DriveMode prev = m_driveMode;
+            m_driveMode = candidate;
+            m_driveModeCandidateSinceMs = 0;  // 重置, 避免新模式下立刻再判
+            Event edm{/*key=*/"drive_mode", /*value=*/static_cast<float>(m_driveMode),
+                      /*prev_value=*/static_cast<float>(prev),
+                      /*timestamp_ms=*/now_ms, /*source=*/this};
+            EventBus::instance().publish(std::move(edm));
+        }
+    }
+}
+
+DriveMode VehicleLogic::detectAutoDriveMode() const {
+    // ECO: 功率小 + 车速低 (平稳驾驶)
+    if (std::fabs(m_powerKw) < kEcoPowerKw && m_speed < kEcoSpeedKmh) {
+        return DRIVE_MODE_ECO;
+    }
+    // SPORT: 强放电 (大油门/急加速) 或 (高速 + 高 RPM)
+    if (m_powerKw < kSportDischargeKw) {
+        return DRIVE_MODE_SPORT;
+    }
+    if (m_speed > kSportSpeedKmh && m_motorRpm > kSportRpm) {
+        return DRIVE_MODE_SPORT;
+    }
+    // 其余 (含功率中等/低速但有动力) → NORMAL
+    return DRIVE_MODE_NORMAL;
+}
+
+void VehicleLogic::onPowerUpdate(float charge_power_kw) {
+    // NaN/Inf 拒绝, 保留 m_powerKw (与 onSocUpdate 同样的容错策略)
+    if (!std::isfinite(charge_power_kw)) return;
+    m_powerKw = charge_power_kw;
+}
+
+void VehicleLogic::onMotorRpmUpdate(int16_t motor_rpm) {
+    // RPM 是整数, 无 NaN 问题, 简单接受
+    m_motorRpm = motor_rpm;
+}
+
+void VehicleLogic::setDriveMode(DriveMode mode, bool manual) {
+    DriveMode prev = m_driveMode;
+    m_driveMode = mode;
+    m_driveModeManual = manual;
+    m_driveModeCandidateSinceMs = 0;  // 手动切后, 自动检测滞后计时器重置
+
+    if (prev != mode) {
+        Event edm{/*key=*/"drive_mode", /*value=*/static_cast<float>(mode),
+                  /*prev_value=*/static_cast<float>(prev),
+                  /*timestamp_ms=*/candash::now_monotonic_ms(), /*source=*/this};
+        EventBus::instance().publish(std::move(edm));
+    }
 }
 
 float VehicleLogic::getSmoothedSoc() const {

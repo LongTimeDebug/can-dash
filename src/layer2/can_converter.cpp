@@ -1,6 +1,7 @@
 // can_converter.cpp
 #include "can_converter.h"
 #include "../generated/can_field_def.h"
+#include <cstdio>
 
 CanConverter::CanConverter() = default;
 
@@ -21,20 +22,25 @@ uint32_t CanConverter::processFrame(uint32_t can_id, const uint8_t* data,
         uint64_t raw = extractRaw(def, data);
         float value = applyScaleOffset(def, raw);
 
-        // 根据字段索引写入 DisplayData（字段顺序与 CAN_FIELD_TABLE 一致）
+        // 根据字段索引写入 DisplayData
+        // 索引顺序与 can_field_table.cpp 完全一致（PR 60 之后 28 项）
         switch (i) {
-            case  0: out.bat_volt = value; break;
-            case  1: out.bat_curr = value; break;
-            case  2: out.bat_soc = (uint8_t)value; break;
-            case  3: out.vehicle_speed = value; break;
-            case  4: out.brake = (uint8_t)value; break;
-            case  5: out.motor_rpm = (int16_t)value; break;
-            case  6: out.motor_temp = (uint8_t)value; break;
-            case  7: out.driver_occupied = (uint8_t)value; break;
-            case  8: out.passenger_occupied = (uint8_t)value; break;
-            case  9: out.driver_buckled = (uint8_t)value; break;
-            case 10: out.passenger_buckled = (uint8_t)value; break;
-            case 11: out.rear_buckle = (uint8_t)value; break;
+            case  0: out.bat_volt = value; break;                       // bat_volt
+            case  1: out.bat_curr = value; break;                       // bat_curr
+            case  2: out.bat_soc = (uint8_t)value; break;              // bat_soc
+            case  3: out.battery_temp = (uint8_t)value; break;          // battery_temp (was: vehicle_speed 错位)
+            case  4: out.vehicle_speed = value; break;                  // vehicle_speed (was: brake 错位)
+            case  5: out.brake = (uint8_t)value; break;                 // brake (was: motor_rpm 错位)
+            case  6: out.motor_rpm = (int16_t)value; break;             // motor_rpm (was: motor_temp 错位)
+            case  7: out.motor_temp = (uint8_t)value; break;            // motor_temp (was: missing)
+            case  8: out.driver_occupied = (uint8_t)value; break;       // driver_occupied
+            case  9: out.passenger_occupied = (uint8_t)value; break;     // passenger_occupied
+            case 10: out.driver_buckled = (uint8_t)value; break;         // driver_buckled
+            case 11: out.passenger_buckled = (uint8_t)value; break;      // passenger_buckled
+            case 12: out.rear_buckle = (uint8_t)value; break;            // rear_buckle
+            // 13-27 暂未在 DisplayData 暴露（HYBRID/CHARGE/LIMP_HOME/TIRE 字段）
+            // 写到 out 的扩展字段需要 DisplayDataShm 添加；目前安全忽略
+            default: break;
         }
 
         updated_mask |= (1U << i);

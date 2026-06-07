@@ -205,6 +205,69 @@ int main() {
     }
     printf("  ✓ table_count=0 边界安全\n");
 
+    // ─── 测试15：tick 触发 SIGNAL_STALE (超时检测) ───
+    printf("\n[测试15] tick 超时 → SIGNAL_STALE\n");
+    {
+        // bat_volt 超时阈值 500ms, 用一个独立的表确保不受前面的状态污染
+        static const SignalMonitorDef t_table[] = {
+            {"stale_v", 0x186060F1, 500, 0.0f, 500.0f, 0.0f, false, 0},
+        };
+        CanSignalMonitor m(cb);
+        m.init(t_table, 1);
+        m.onCanFrame(0x186060F1, 350.0f);  // t=0 时刻
+        assert(m.getQuality("stale_v") == SIGNAL_GOOD);
+        // tick 推进到 t=499ms, 还在窗口内
+        m.tick(499);
+        assert(m.getQuality("stale_v") == SIGNAL_GOOD);
+        // tick 推进到 t=500ms, 到达阈值
+        m.tick(500);
+        assert(m.getQuality("stale_v") == SIGNAL_STALE);
+        // 继续推进, STALE 状态保持
+        m.tick(1000);
+        assert(m.getQuality("stale_v") == SIGNAL_STALE);
+    }
+    printf("  ✓ 超时阈值到达 → SIGNAL_STALE, 持续保持\n");
+
+    // ─── 测试16：STALE → GOOD 恢复 (新帧到达) ───
+    printf("\n[测试16] STALE → GOOD 恢复\n");
+    {
+        static const SignalMonitorDef t_table[] = {
+            {"recover_v", 0x186060F2, 500, 0.0f, 500.0f, 0.0f, false, 0},
+        };
+        CanSignalMonitor m(cb);
+        m.init(t_table, 1);
+        m.onCanFrame(0x186060F2, 300.0f);
+        m.tick(1000);  // → STALE
+        assert(m.getQuality("recover_v") == SIGNAL_STALE);
+        // 重新发一帧正常值
+        m.onCanFrame(0x186060F2, 320.0f);
+        assert(m.getQuality("recover_v") == SIGNAL_GOOD);
+        // 再次 tick 500ms 后还会再 STALE
+        m.tick(1500);
+        assert(m.getQuality("recover_v") == SIGNAL_STALE);
+    }
+    printf("  ✓ 新帧恢复 GOOD, 超时后再次 STALE\n");
+
+    // ─── 测试17：prevValue 正确跟踪 (突变检测前置条件) ───
+    printf("\n[测试17] prevValue 跟踪\n");
+    {
+        // max_delta=10, 准备触发突变检测
+        static const SignalMonitorDef t_table[] = {
+            {"delta_v", 0x186060F3, 500, 0.0f, 500.0f, 10.0f, false, 0},
+        };
+        CanSignalMonitor m(cb);
+        m.init(t_table, 1);
+        m.onCanFrame(0x186060F3, 100.0f);
+        // 第一次调用 prevValue=0 → lastValue=100
+        // 第二次 prevValue=100 → lastValue=105 (delta=5 < 10, GOOD)
+        m.onCanFrame(0x186060F3, 105.0f);
+        assert(m.getQuality("delta_v") == SIGNAL_GOOD);
+        // 第三次 prevValue=105 → lastValue=200 (delta=95 > 10, ABNORMAL_DELTA)
+        m.onCanFrame(0x186060F3, 200.0f);
+        assert(m.getQuality("delta_v") == SIGNAL_ABNORMAL_DELTA);
+    }
+    printf("  ✓ prevValue 正确推进, 触发突变检测\n");
+
     printf("\n所有测试通过。\n");
     return 0;
 }

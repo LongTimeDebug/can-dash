@@ -1,10 +1,15 @@
 # build artifacts
 build/
+build_*/
 build-processor/
 build-test/
 build_ci/
 build_ci_test/
 qml/
+qml_clean/
+
+# tools
+docs/requirements/update_req_v1.py
 *.o
 *.a
 *.so

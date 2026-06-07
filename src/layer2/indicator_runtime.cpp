@@ -1,34 +1,30 @@
 // indicator_runtime.cpp
 #include "indicator_runtime.h"
 #include "time_util.h"
+#include <algorithm>  // std::min
 #include <cstdio>
 
 IndicatorRuntime::IndicatorRuntime(const IndicatorCallbacks& cb)
     : m_cb(cb) {}
 
-IndicatorRuntime::~IndicatorRuntime() {
-    // m_states 由 init() new 出来，析构时必须释放
-    //  否则反复 init/析构会泄漏（cppcheck: unsafeClassCanLeak）
-    delete[] m_states;
-    m_states = nullptr;
-    m_count = 0;
-}
-
 void IndicatorRuntime::init(const IndicatorDef* table, int table_count) {
-    // re-init 安全: 先释放旧的 m_states, 避免反复 init 泄漏 (PR-2026-06-06)
-    if (m_states) {
-        delete[] m_states;
-        m_states = nullptr;
+    // 重置所有状态 (支持 re-init, 旧状态自动覆盖)
+    for (int i = 0; i < MAX_INDICATORS; i++) {
+        m_states[i] = IndicatorState{};
     }
+    m_table = nullptr;
     m_count = 0;
 
+    if (table_count <= 0) return;  // 早返回, table 为空
+    if (table == nullptr) return;  // 防御性: 空表指针 + 正数 count
+
+    // 编译期上限保护: 超过 MAX_INDICATORS 的部分被截断, 防止栈溢出
+    // (yaml 校验工具 validate.py 已经检查 indicators.yaml 数量, 这里双保险)
+    const int clamped = std::min(table_count, MAX_INDICATORS);
     m_table = table;
-    m_count = table_count;
+    m_count = clamped;
 
-    if (table_count <= 0) return;  // 早返回, 不分配
-    m_states = new IndicatorState[table_count]();
-
-    for (int i = 0; i < table_count; i++) {
+    for (int i = 0; i < clamped; i++) {
         m_states[i].def = &table[i];
         m_states[i].on = false;
         m_states[i].flash = false;
@@ -38,6 +34,7 @@ void IndicatorRuntime::init(const IndicatorDef* table, int table_count) {
 }
 
 void IndicatorRuntime::setIndicator(const char* widget_id, bool on, bool flash, float hz) {
+    if (widget_id == nullptr) return;  // 防御: nullptr id
     IndicatorState* state = findIndicator(widget_id);
     if (!state) return;
 
@@ -60,7 +57,9 @@ void IndicatorRuntime::tick(uint64_t now_ms) {
 
 IndicatorState* IndicatorRuntime::findIndicator(const char* id) {
     for (int i = 0; i < m_count; i++) {
-        if (strcmp(m_table[i].id, id) == 0) return &m_states[i];
+        if (m_table[i].id != nullptr && strcmp(m_table[i].id, id) == 0) {
+            return &m_states[i];
+        }
     }
     return nullptr;
 }
@@ -74,8 +73,11 @@ int IndicatorRuntime::activeCount() const {
 }
 
 bool IndicatorRuntime::isOn(const char* id) const {
+    if (id == nullptr) return false;  // 防御
     for (int i = 0; i < m_count; i++) {
-        if (strcmp(m_table[i].id, id) == 0) return m_states[i].on;
+        if (m_table[i].id != nullptr && strcmp(m_table[i].id, id) == 0) {
+            return m_states[i].on;
+        }
     }
     return false;
 }

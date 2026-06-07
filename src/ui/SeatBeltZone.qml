@@ -1,162 +1,15 @@
 // SeatBeltZone.qml - 安全带监控（REQ-SYS-004）
-// 5座位安全带状态显示，支持 debounce 和 AlarmBanner 集成
+// 使用 QtQuick.Shapes 替代 Canvas 2D：GPU 合成 opacity，只动 NumberAnimation，无需 requestPaint
 import QtQuick 2.15
+import QtQuick.Shapes
 
 Item {
     id: root
     width: 420
     height: 90
 
-    // ─── Canvas 绘制5个座位图标 ───
-    Canvas {
-        id: canvas
-        anchors.fill: parent
-        antialiasing: true
-
-        // 闪烁相位（0=亮, 1=暗），由 Timer 驱动
-        property real flashPhase: 0.0
-        property bool isFlashing: false
-
-        onPaint: {
-            var ctx = getContext("2d")
-            var w = width
-            var h = height
-            var seatW = Math.min(w / 5 - 8, 68)
-            var seatH = Math.min(h - 20, 62)
-            var gap = 8
-            var totalW = 5 * seatW + 4 * gap
-            var startX = (w - totalW) / 2
-
-            ctx.clearRect(0, 0, w, h)
-
-            var lang = dashboard.currentLanguage || "zh_CN"
-            var isZh = (lang === "zh_CN")
-
-            for (var i = 0; i < 5; i++) {
-                var seat = dashboard.seatIconStates[i] || {}
-                var def = seatDefs[i]
-                var x = startX + i * (seatW + gap)
-                var y = 2
-
-                var occupied = !!seat.occupied
-                var buckled = !!seat.buckled
-                var warning = !!seat.warning
-
-                // 背景色（闪烁时 alpha 变化）
-                var alpha = (isFlashing && warning) ? (0.3 + 0.7 * flashPhase) : 1.0
-                var bgColor
-                if (!occupied) {
-                    bgColor = "rgba(51,51,51," + alpha + ")"
-                } else if (warning) {
-                    bgColor = "rgba(170,17,0," + alpha + ")"
-                } else if (buckled) {
-                    bgColor = "rgba(0,102,34," + alpha + ")"
-                } else {
-                    bgColor = "rgba(51,51,51," + alpha + ")"
-                }
-
-                // 圆角矩形背景
-                _drawRoundRectPath(ctx, x, y, seatW, seatH, 6)
-                ctx.fillStyle = bgColor
-                ctx.fill()
-
-                // 边框
-                _drawRoundRectPath(ctx, x, y, seatW, seatH, 6)
-                ctx.strokeStyle = warning ? "rgba(255,68,0," + alpha + ")" : "rgba(60,60,60," + alpha + ")"
-                ctx.lineWidth = warning ? 2 : 1
-                ctx.stroke()
-
-                // Buckle 状态图标（✓ / ! / —）
-                var iconText = !occupied ? "—" : (buckled ? "✓" : "!")
-                var iconColor = !occupied ? "rgba(85,85,85," + alpha + ")" : (buckled ? "rgba(0,255,136," + alpha + ")" : "rgba(255,68,0," + alpha + ")")
-                ctx.font = "bold " + Math.round(seatH * 0.38) + "px sans-serif"
-                ctx.fillStyle = iconColor
-                ctx.textAlign = "center"
-                ctx.textBaseline = "middle"
-                ctx.fillText(iconText, x + seatW / 2, y + seatH * 0.48)
-
-                // 座位标签
-                var label = isZh ? def.labelZh : def.labelEn
-                ctx.font = "bold 9px sans-serif"
-                ctx.fillStyle = "rgba(136,136,136," + alpha + ")"
-                ctx.textAlign = "center"
-                ctx.textBaseline = "bottom"
-                ctx.fillText(label, x + seatW / 2, y + seatH + 14)
-            }
-        }
-
-        function _drawRoundRectPath(ctx, x, y, w, h, r) {
-            ctx.beginPath()
-            ctx.moveTo(x + r, y)
-            ctx.lineTo(x + w - r, y)
-            ctx.quadraticCurveTo(x + w, y, x + w, y + r)
-            ctx.lineTo(x + w, y + h - r)
-            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h)
-            ctx.lineTo(x + r, y + h)
-            ctx.quadraticCurveTo(x, y + h, x, y + h - r)
-            ctx.lineTo(x, y + r)
-            ctx.quadraticCurveTo(x, y, x + r, y)
-            ctx.closePath()
-        }
-    }
-
-    // ─── 2Hz 闪烁 Timer（驱动 flashPhase）───
-    // 2Hz = 500ms 周期，250ms 半周期
-    Timer {
-        id: flashTimer
-        interval: 250
-        running: _hasWarning && dashboard.isMoving
-        repeat: true
-        onTriggered: {
-            canvas.flashPhase = (canvas.flashPhase === 0.0) ? 1.0 : 0.0
-            canvas.isFlashing = true
-            canvas.requestPaint()
-        }
-    }
-
-    // 监听 seatIconStates 变化 → 重绘
-    Connections {
-        target: dashboard
-        function onSeatBeltWarningChanged() {
-            _updateWarningState()
-            canvas.requestPaint()
-            _updateIndicator()
-        }
-    }
-
-    // ─── 监听 isMoving 变化（影响闪烁条件）───
-    Connections {
-        target: dashboard
-        function onMovingChanged() {
-            if (!dashboard.isMoving) {
-                canvas.flashPhase = 0.0
-                canvas.isFlashing = false
-            }
-            canvas.requestPaint()
-        }
-    }
-
-    // ─── 当前是否有 warning ───
-    property bool _hasWarning: false
-
-    function _updateWarningState() {
-        var states = dashboard.seatIconStates
-        _hasWarning = states.some(function(s) { return !!s.warning })
-    }
-
-    // ─── 触发 AlarmBanner（通过 dashboard 指示灯系统）───
-    function _updateIndicator() {
-        dashboard.setIndicator("seatbelt_warning", _hasWarning)
-    }
-
-    // ─── 初始化时读取一次 ───
-    Component.onCompleted: {
-        _updateWarningState()
-        _updateIndicator()
-        canvas.requestPaint()
-    }
-
-    // ─── 座位定义 ───
+    // ─── 公开属性（兼容旧版）───
+    property var dashboard: null
     readonly property var seatDefs: [
         { id: "driver",      labelZh: "主驾", labelEn: "DRIVER" },
         { id: "passenger",   labelZh: "副驾", labelEn: "PASSENGER" },
@@ -164,4 +17,428 @@ Item {
         { id: "rear_center", labelZh: "后中", labelEn: "REAR C" },
         { id: "rear_right",  labelZh: "后右", labelEn: "REAR R" }
     ]
+
+    // ─── 内部状态 ───
+    property bool _hasWarning: false
+    property bool isFlashing: false    // 驱动动画 running 状态
+
+    // 布局常量（与旧 Canvas 算法保持一致视觉）
+    readonly property real _seatW: Math.min(root.width / 5 - 8, 68)
+    readonly property real _seatH: Math.min(root.height - 20, 62)
+    readonly property real _gap: 8
+    readonly property real _totalW: 5 * _seatW + 4 * _gap
+    readonly property real _startX: (root.width - _totalW) / 2
+    readonly property int _iconFontSize: Math.round(_seatH * 0.38)
+    readonly property real _labelYOffset: _seatH + 14
+
+    // ─── Shape: 5 个座位背景圆角矩形 ───
+    // 使用 Shape + ShapePath 而非 Canvas：GPU 合成，路径不变时不重绘
+    Shape {
+        id: seatShape
+        anchors.fill: parent
+        antialiasing: true
+
+        // Qt 6.6+ 曲线渲染器，比软件顶点着色快 5-10x
+        // 不可用时自动 fallback 到默认渲染器
+        rendererType: Shape.CurveRenderer
+
+        // 5 个 ShapePath，共享一个 Shape（文档建议用法）
+        // 座位 0: driver
+        ShapePath {
+            id: sp0
+            fillColor: _bgColor(0)
+            strokeColor: _strokeColor(0)
+            strokeWidth: _strokeWidth(0)
+            strokeStyle: ShapePath.SolidLine
+            // 圆角矩形 SVG path：M=moveto, a=arc, h=horz, v=vert
+            PathSvg {
+                property real sx: _seatX(0)
+                property real sy: 2
+                property real sw: _seatW
+                property real sh: _seatH
+                property real r: 6
+                path: "M" + (sx + r) + "," + sy
+                    + " h" + (sw - 2 * r)
+                    + " a" + r + "," + r + " 0 0 1 " + r + "," + r
+                    + " v" + (sh - 2 * r)
+                    + " a" + r + "," + r + " 0 0 1 " + (-r) + "," + r
+                    + " h" + (-(sw - 2 * r))
+                    + " a" + r + "," + r + " 0 0 1 " + (-r) + "," + (-r)
+                    + " v" + (-(sh - 2 * r))
+                    + " a" + r + "," + r + " 0 0 1 " + r + "," + (-r)
+                    + " Z"
+            }
+        }
+        // 座位 1: passenger
+        ShapePath {
+            id: sp1
+            fillColor: _bgColor(1)
+            strokeColor: _strokeColor(1)
+            strokeWidth: _strokeWidth(1)
+            strokeStyle: ShapePath.SolidLine
+            PathSvg {
+                property real sx: _seatX(1)
+                property real sy: 2
+                property real sw: _seatW
+                property real sh: _seatH
+                property real r: 6
+                path: "M" + (sx + r) + "," + sy
+                    + " h" + (sw - 2 * r)
+                    + " a" + r + "," + r + " 0 0 1 " + r + "," + r
+                    + " v" + (sh - 2 * r)
+                    + " a" + r + "," + r + " 0 0 1 " + (-r) + "," + r
+                    + " h" + (-(sw - 2 * r))
+                    + " a" + r + "," + r + " 0 0 1 " + (-r) + "," + (-r)
+                    + " v" + (-(sh - 2 * r))
+                    + " a" + r + "," + r + " 0 0 1 " + r + "," + (-r)
+                    + " Z"
+            }
+        }
+        // 座位 2: rear_left
+        ShapePath {
+            id: sp2
+            fillColor: _bgColor(2)
+            strokeColor: _strokeColor(2)
+            strokeWidth: _strokeWidth(2)
+            strokeStyle: ShapePath.SolidLine
+            PathSvg {
+                property real sx: _seatX(2)
+                property real sy: 2
+                property real sw: _seatW
+                property real sh: _seatH
+                property real r: 6
+                path: "M" + (sx + r) + "," + sy
+                    + " h" + (sw - 2 * r)
+                    + " a" + r + "," + r + " 0 0 1 " + r + "," + r
+                    + " v" + (sh - 2 * r)
+                    + " a" + r + "," + r + " 0 0 1 " + (-r) + "," + r
+                    + " h" + (-(sw - 2 * r))
+                    + " a" + r + "," + r + " 0 0 1 " + (-r) + "," + (-r)
+                    + " v" + (-(sh - 2 * r))
+                    + " a" + r + "," + r + " 0 0 1 " + r + "," + (-r)
+                    + " Z"
+            }
+        }
+        // 座位 3: rear_center
+        ShapePath {
+            id: sp3
+            fillColor: _bgColor(3)
+            strokeColor: _strokeColor(3)
+            strokeWidth: _strokeWidth(3)
+            strokeStyle: ShapePath.SolidLine
+            PathSvg {
+                property real sx: _seatX(3)
+                property real sy: 2
+                property real sw: _seatW
+                property real sh: _seatH
+                property real r: 6
+                path: "M" + (sx + r) + "," + sy
+                    + " h" + (sw - 2 * r)
+                    + " a" + r + "," + r + " 0 0 1 " + r + "," + r
+                    + " v" + (sh - 2 * r)
+                    + " a" + r + "," + r + " 0 0 1 " + (-r) + "," + r
+                    + " h" + (-(sw - 2 * r))
+                    + " a" + r + "," + r + " 0 0 1 " + (-r) + "," + (-r)
+                    + " v" + (-(sh - 2 * r))
+                    + " a" + r + "," + r + " 0 0 1 " + r + "," + (-r)
+                    + " Z"
+            }
+        }
+        // 座位 4: rear_right
+        ShapePath {
+            id: sp4
+            fillColor: _bgColor(4)
+            strokeColor: _strokeColor(4)
+            strokeWidth: _strokeWidth(4)
+            strokeStyle: ShapePath.SolidLine
+            PathSvg {
+                property real sx: _seatX(4)
+                property real sy: 2
+                property real sw: _seatW
+                property real sh: _seatH
+                property real r: 6
+                path: "M" + (sx + r) + "," + sy
+                    + " h" + (sw - 2 * r)
+                    + " a" + r + "," + r + " 0 0 1 " + r + "," + r
+                    + " v" + (sh - 2 * r)
+                    + " a" + r + "," + r + " 0 0 1 " + (-r) + "," + r
+                    + " h" + (-(sw - 2 * r))
+                    + " a" + r + "," + r + " 0 0 1 " + (-r) + "," + (-r)
+                    + " v" + (-(sh - 2 * r))
+                    + " a" + r + "," + r + " 0 0 1 " + r + "," + (-r)
+                    + " Z"
+            }
+        }
+    }
+
+    // ─── 5 个座位的图标文字和标签文字（层叠在 Shape 上方）───
+    // 每个座位一个 Item，opacity 绑定动画，座位之间独立
+    Item {
+        id: seatItems
+        anchors.fill: parent
+
+        // 座位 0
+        Item {
+            id: seatItem0
+            x: _seatX(0); y: 0; width: _seatW; height: root.height
+            opacity: isFlashing && _seatWarning(0) ? _flashOpacity : 1.0
+            NumberAnimation on _flashOpacity {
+                id: anim0
+                from: 1.0; to: 0.3
+                duration: 250
+                running: isFlashing && _seatWarning(0)
+                loops: Animation.Infinite
+                easing.type: Easing.InOutQuad
+            }
+            property real _flashOpacity: 1.0
+            Text {
+                anchors.centerIn: parent
+                y: -_seatH * 0.02
+                text: _seatIconText(0)
+                color: _iconColor(0)
+                font.bold: true
+                font.pixelSize: _iconFontSize
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                y: _labelYOffset
+                text: _seatLabel(0)
+                color: "rgba(136,136,136,1)"
+                font.bold: true
+                font.pixelSize: 9
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignBottom
+            }
+        }
+
+        // 座位 1
+        Item {
+            id: seatItem1
+            x: _seatX(1); y: 0; width: _seatW; height: root.height
+            opacity: isFlashing && _seatWarning(1) ? _flashOpacity : 1.0
+            NumberAnimation on _flashOpacity {
+                id: anim1
+                from: 1.0; to: 0.3
+                duration: 250
+                running: isFlashing && _seatWarning(1)
+                loops: Animation.Infinite
+                easing.type: Easing.InOutQuad
+            }
+            property real _flashOpacity: 1.0
+            Text {
+                anchors.centerIn: parent
+                y: -_seatH * 0.02
+                text: _seatIconText(1)
+                color: _iconColor(1)
+                font.bold: true
+                font.pixelSize: _iconFontSize
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                y: _labelYOffset
+                text: _seatLabel(1)
+                color: "rgba(136,136,136,1)"
+                font.bold: true
+                font.pixelSize: 9
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignBottom
+            }
+        }
+
+        // 座位 2
+        Item {
+            id: seatItem2
+            x: _seatX(2); y: 0; width: _seatW; height: root.height
+            opacity: isFlashing && _seatWarning(2) ? _flashOpacity : 1.0
+            NumberAnimation on _flashOpacity {
+                id: anim2
+                from: 1.0; to: 0.3
+                duration: 250
+                running: isFlashing && _seatWarning(2)
+                loops: Animation.Infinite
+                easing.type: Easing.InOutQuad
+            }
+            property real _flashOpacity: 1.0
+            Text {
+                anchors.centerIn: parent
+                y: -_seatH * 0.02
+                text: _seatIconText(2)
+                color: _iconColor(2)
+                font.bold: true
+                font.pixelSize: _iconFontSize
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                y: _labelYOffset
+                text: _seatLabel(2)
+                color: "rgba(136,136,136,1)"
+                font.bold: true
+                font.pixelSize: 9
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignBottom
+            }
+        }
+
+        // 座位 3
+        Item {
+            id: seatItem3
+            x: _seatX(3); y: 0; width: _seatW; height: root.height
+            opacity: isFlashing && _seatWarning(3) ? _flashOpacity : 1.0
+            NumberAnimation on _flashOpacity {
+                id: anim3
+                from: 1.0; to: 0.3
+                duration: 250
+                running: isFlashing && _seatWarning(3)
+                loops: Animation.Infinite
+                easing.type: Easing.InOutQuad
+            }
+            property real _flashOpacity: 1.0
+            Text {
+                anchors.centerIn: parent
+                y: -_seatH * 0.02
+                text: _seatIconText(3)
+                color: _iconColor(3)
+                font.bold: true
+                font.pixelSize: _iconFontSize
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                y: _labelYOffset
+                text: _seatLabel(3)
+                color: "rgba(136,136,136,1)"
+                font.bold: true
+                font.pixelSize: 9
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignBottom
+            }
+        }
+
+        // 座位 4
+        Item {
+            id: seatItem4
+            x: _seatX(4); y: 0; width: _seatW; height: root.height
+            opacity: isFlashing && _seatWarning(4) ? _flashOpacity : 1.0
+            NumberAnimation on _flashOpacity {
+                id: anim4
+                from: 1.0; to: 0.3
+                duration: 250
+                running: isFlashing && _seatWarning(4)
+                loops: Animation.Infinite
+                easing.type: Easing.InOutQuad
+            }
+            property real _flashOpacity: 1.0
+            Text {
+                anchors.centerIn: parent
+                y: -_seatH * 0.02
+                text: _seatIconText(4)
+                color: _iconColor(4)
+                font.bold: true
+                font.pixelSize: _iconFontSize
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                y: _labelYOffset
+                text: _seatLabel(4)
+                color: "rgba(136,136,136,1)"
+                font.bold: true
+                font.pixelSize: 9
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignBottom
+            }
+        }
+    }
+
+    // ─── 辅助函数（每帧调用，不触发整图重绘）───
+    function _seatX(i) { return _startX + i * (_seatW + _gap) }
+    function _seatWarning(i) {
+        var seat = dashboard ? (dashboard.seatIconStates[i] || {}) : {}
+        return !!seat.warning
+    }
+    function _seatOccupied(i) {
+        var seat = dashboard ? (dashboard.seatIconStates[i] || {}) : {}
+        return !!seat.occupied
+    }
+    function _seatBuckled(i) {
+        var seat = dashboard ? (dashboard.seatIconStates[i] || {}) : {}
+        return !!seat.buckled
+    }
+    function _bgColor(i) {
+        var occupied = _seatOccupied(i)
+        var buckled = _seatBuckled(i)
+        var warning = _seatWarning(i)
+        if (!occupied)     return "#33" + "333333"
+        if (warning)       return "#AA" + "1100"
+        if (buckled)       return "#00" + "6622"
+        return "#33" + "333333"
+    }
+    function _strokeColor(i) {
+        var warning = _seatWarning(i)
+        return warning ? "#FF4400" : "#3C3C3C"
+    }
+    function _strokeWidth(i) {
+        return _seatWarning(i) ? 2 : 1
+    }
+    function _iconText(i) {
+        var occupied = _seatOccupied(i)
+        if (!occupied) return "\u2014"  // —
+        var buckled = _seatBuckled(i)
+        return buckled ? "\u2713" : "!"  // ✓ or !
+    }
+    function _iconColor(i) {
+        var occupied = _seatOccupied(i)
+        if (!occupied) return "#55" + "555555"
+        var buckled = _seatBuckled(i)
+        return buckled ? "#00FF88" : "#FF4400"
+    }
+    function _seatIconText(i) { return _iconText(i) }
+    function _seatLabel(i) {
+        var def = seatDefs[i]
+        var lang = dashboard ? dashboard.currentLanguage : "zh_CN"
+        return (lang === "zh_CN") ? def.labelZh : def.labelEn
+    }
+
+    // ─── 监听 dashboard 信号（只更新状态，ShapePath 绑定自动刷新）───
+    Connections {
+        target: dashboard
+        function onSeatBeltWarningChanged() {
+            _updateWarningState()
+            _updateIndicator()
+        }
+    }
+
+    Connections {
+        target: dashboard
+        function onMovingChanged() {
+            if (!dashboard.isMoving) {
+                isFlashing = false
+            }
+        }
+    }
+
+    // ─── 状态更新 ───
+    function _updateWarningState() {
+        var states = dashboard ? dashboard.seatIconStates : []
+        _hasWarning = Array.isArray(states) && states.some(function(s) { return !!s.warning })
+        isFlashing = _hasWarning && dashboard.isMoving
+    }
+
+    function _updateIndicator() {
+        if (dashboard) dashboard.setIndicator("seatbelt_warning", _hasWarning)
+    }
+
+    // ─── 初始化 ───
+    Component.onCompleted: {
+        _updateWarningState()
+        _updateIndicator()
+    }
 }

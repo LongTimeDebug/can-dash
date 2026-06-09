@@ -263,6 +263,27 @@ target_include_directories(test_time_util PRIVATE
     ${CMAKE_SOURCE_DIR}/src ${LAYER2_DIR})
 add_test(NAME TimeUtilTest COMMAND test_time_util)
 
+# ─── Rule Engine (PR-EXPR) ───
+# exprtk: header-only, 下载到 third_party/exprtk/exprtk.hpp
+# yaml-cpp: 系统包 libyaml-cpp-dev (apt)
+find_package(yaml-cpp QUIET)
+if(NOT yaml-cpp_FOUND)
+    message(FATAL_ERROR "yaml-cpp not found. apt install libyaml-cpp-dev")
+endif()
+
+# rule_engine 源码单独 target, 给 layer3 和 test 复用
+add_library(rule_engine STATIC src/layer3/rule_engine.cpp)
+target_include_directories(rule_engine PUBLIC
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/exprtk
+)
+target_link_libraries(rule_engine PUBLIC yaml-cpp Qt6::Core)
+
+# rule engine 单元测试 (不依赖 layer1/layer2, 独立可跑)
+add_executable(test_rule_engine tests/test_rule_engine.cpp)
+target_link_libraries(test_rule_engine PRIVATE rule_engine Qt6::Core)
+add_test(NAME RuleEngineTest COMMAND test_rule_engine)
+
 # LCD 背光超时管理 (PR 51) — 纯 L2 状态机, 无 yaml/L1 依赖
 add_executable(test_display_manager tests/test_display_manager.cpp
     ${LAYER2_DIR}/display_manager.cpp)

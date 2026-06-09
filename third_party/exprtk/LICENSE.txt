@@ -1,0 +1,6 @@
+# exprtk.hpp — C++ Mathematical Expression Toolkit Library
+# Source: https://github.com/ArashPartow/exprtk
+# License: MPL 1.1 (Mozilla Public License)
+# Author:  Arash Partow (1999-2025)
+# Vendored because: header-only, single file, no upstream apt/system package.
+# Path: third_party/exprtk/exprtk.hpp

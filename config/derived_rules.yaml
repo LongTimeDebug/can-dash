@@ -1,26 +1,26 @@
 # derived_rules.yaml
-# 运行时配置驱动的派生计算 / 状态机 / 报警引擎 (PR-EXPR-2: 集成到 ShmDataSource)
+# 运行时配置驱动的派生计算 / 状态机 / 报警联动 (PR-EXPR-3: 7 条规则全开)
 # 引擎: exprtk + yaml-cpp
-# 接入点: ShmDataSource::onTick() 在 "5. 推送快照" 前 evaluate(ctx)
-# 数据流: DisplaySnapshot 拍平 → ctx → exprtk 求值 → setter 改 m_snapshot → binder 自动 NOTIFY
+# 接入点: ShmDataSource::onTick() 4.12 节 (limphome 之后, 推送前)
+# 数据流: shm 协议 → 拍平 ctx → exprtk 求值 → setter 改 m_snapshot → binder 自动 NOTIFY
 #
-# 表达式可用变量 (C++ 端 registerVariable 绑定到 ctx 字段):
+# 表达式可用变量 (C++ 端 addVariable 绑定, 跟 kCtxKeys 同步):
 #   bat_soc, bat_volt, vehicle_speed, motor_temp
 #   precharge_status, idle_seconds
-#   bat_soc_lost, bat_volt_lost, vehicle_speed_lost
+#   bat_soc_lost, bat_volt_lost, vehicle_speed_lost    ← updated_mask bit 反向
 #   driver_occupied, driver_buckled
 #   passenger_occupied, passenger_buckled
 #   health (0=disconnected 1=waiting 2=stale 3=ok)
 #   view_current
 #
-# 表达式可用 setter (C++ 端 registerSetter 注册):
-#   set_trip_range_confidence(v: 0-100)     ← PR-EXPR-2 验证
-#   set_view_mode(v: 0=DRIVE 1=READY 2=SHUTDOWN 3=GO)        ← PR-EXPR-3 加
-#   set_indicator(id: 0-11, on, flash, hz)   ← PR-EXPR-3 加
-#   push_alarm(name, zh, en, severity, color) ← PR-EXPR-3 加
+# 表达式可用 setter (C++ 端 registerSetter, PR-EXPR-3 已注册 3 个):
+#   set_trip_range_confidence(v: 0-100)
+#   set_view_mode(v: 0=DRIVE 1=READY 2=SHUTDOWN 3=GO)
+#   set_indicator(id: 0-11, on: 0/1, flash: 0/1, hz: float)
+#   push_alarm(name, zh, en, severity, color)  ← PR-EXPR-4 加 (需字符串支持)
 
+# ─── 派生计算 (1 条) ───
 derived_metrics:
-  # ── 续航可信度: 5 档分支 (示例规则, 跟现有 L2 trip_computer 算法等价) ──
   - id: "range_confidence"
     expr: |
       if (bat_soc_lost == 1) {
@@ -33,4 +33,87 @@ derived_metrics:
         set_trip_range_confidence(30);
       } else {
         set_trip_range_confidence(100);
+      }
+
+# ─── 状态机 (2 条: view_mode + readygo 指示灯) ───
+state_machines:
+  - id: "view_mode"
+    # 5 态状态机: SHUTDOWN > READY > GO > DRIVE
+    # 优先级: 处理器断开 > 预充电未完成 > speed<0.5 (READY) > speed<5 (GO) > DRIVE
+    expr: |
+      if (health == 0) {
+        set_view_mode(2);
+        set_indicator(3, 0, 0, 0);
+      } else if (precharge_status == 0) {
+        set_view_mode(1);
+        set_indicator(3, 1, 0, 0);
+      } else if (vehicle_speed < 0.5) {
+        set_view_mode(1);
+        set_indicator(3, 1, 0, 0);
+      } else if (vehicle_speed < 5.0) {
+        set_view_mode(3);
+        set_indicator(3, 1, 1, 2.0);
+      } else {
+        set_view_mode(0);
+        set_indicator(3, 0, 0, 0);
+      }
+
+  - id: "limp_home_level"
+    # 4 档: 0=NORMAL 1=L1 2=L2 3=L3
+    # 注: 跟 L2 limp_home_runtime 互不冲突 (L2 是处理器侧状态机, 这里 UI 端只映射阈值)
+    # 注: set_limp_home_level 是 PR-EXPR-4 才加, 当前复用 set_trip_range_confidence 演示
+    expr: |
+      if (bat_soc_lost == 1 or vehicle_speed_lost == 1) {
+        set_trip_range_confidence(0);
+      } else if (bat_soc < 5) {
+        set_trip_range_confidence(0);
+      } else if (bat_soc < 10 or motor_temp > 85) {
+        set_trip_range_confidence(20);
+      } else {
+        set_trip_range_confidence(100);
+      }
+
+# ─── 报警联动 (4 条: 电池丢失/欠压/过压/车速丢失) ───
+alarm_rules:
+  - id: "bat_volt_lost"
+    # 信号丢失: 优先判 lost 标志 (避免把 0V 当成欠压误报)
+    expr: |
+      if (bat_volt_lost == 1) {
+        set_indicator(4, 1, 1, 4.0);
+      } else {
+        set_indicator(4, 0, 0, 0);
+      }
+
+  - id: "bat_volt_alarm"
+    # 数值条件: 必须先确认信号有效, 再判阈值
+    expr: |
+      if (bat_volt_lost == 0 and bat_volt > 0 and bat_volt < 280.0) {
+        set_indicator(4, 1, 1, 2.0);
+      } else if (bat_volt_lost == 0 and bat_volt > 420.0) {
+        set_indicator(4, 1, 1, 2.0);
+      } else {
+        set_indicator(4, 0, 0, 0);
+      }
+
+  - id: "vehicle_speed_lost"
+    # 车速丢失: 只能从 lost 标志判断
+    expr: |
+      if (vehicle_speed_lost == 1) {
+        set_indicator(9, 1, 1, 4.0);
+      } else {
+        set_indicator(9, 0, 0, 0);
+      }
+
+  - id: "seat_belt_warning"
+    # 安全带: 多条件 AND/OR
+    expr: |
+      if ((driver_buckled == 0 and driver_occupied == 1)
+          or (passenger_buckled == 0 and passenger_occupied == 1)) {
+        if (vehicle_speed > 5.0 and vehicle_speed_lost == 0) {
+          set_indicator(8, 1, 1, 1.5);
+        } else {
+          set_indicator(8, 0, 0, 0);
+        }
+      } else {
+        set_indicator(8, 0, 0, 0);
       }

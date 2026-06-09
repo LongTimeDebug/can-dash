@@ -98,6 +98,23 @@ bool ShmDataSource::start() {
             m_snapshot.trip_range_confidence_pct = static_cast<float>(a[0]);
         });
 
+    // set_view_mode(v) — 0=DRIVE 1=READY 2=SHUTDOWN 3=GO
+    // 注: ViewManager 自己也会改 m_snapshot.view_current, 这里后写优先
+    m_rule_engine->registerSetter("set_view_mode", 1,
+        [this](const std::vector<double>& a) {
+            m_snapshot.view_current = static_cast<uint8_t>(a[0]);
+        });
+
+    // set_indicator(id, on, flash, hz) — 指示灯 0~11
+    m_rule_engine->registerSetter("set_indicator", 4,
+        [this](const std::vector<double>& a) {
+            const int id = static_cast<int>(a[0]);
+            if (id < 0 || id >= DISPLAY_INDICATOR_COUNT) return;
+            m_snapshot.indicators.lights[id].on    = a[1] != 0.0;
+            m_snapshot.indicators.lights[id].flash = a[2] != 0.0;
+            m_snapshot.indicators.lights[id].hz    = static_cast<float>(a[3]);
+        });
+
     if (QFileInfo(m_ruleEngineYamlPath).exists()) {
         if (m_rule_engine->loadRules(m_ruleEngineYamlPath)) {
             FileLogger::instance().info(QStringLiteral("ShmDataSource"),
@@ -390,14 +407,15 @@ void ShmDataSource::onTick() {
                                   : (now - m_idleStartMs) / 1000;
 
         // signal_lost 标志: 看 updated_mask bit
-        // updated_mask bit 数位: 跟 SIGNAL_TABLE 顺序对齐
-        // 简化: 暂时认为 mask=0 都是 lost (实际需要按位查表)
-        // TODO: 用 shm_display_field_validity(shm, name) 查
-        auto isLost = [&](const char* name) -> int {
-            // 简化版: 任何 signal updated_mask=0 时算 lost
-            // 后续用 shm_display_field_validity 精确定位
-            return (shm.updated_mask == 0) ? 1 : 0;  // 整个 mask 为 0 时全 lost
+        // bit[i]=1 表示字段 i 已更新, 0 表示本帧未更新 (= 信号丢失)
+        // 字段索引对应 SHM_FIELD_* 枚举 (从 shm_display.h)
+        // 简化版: 只判断规则里用到的 3 个字段
+        auto isLost = [&](int field_idx) -> int {
+            return (shm.updated_mask & (1u << field_idx)) == 0 ? 1 : 0;
         };
+        constexpr int SHM_F_BAT_SOC         = 5;   // SHM_FIELD_BAT_SOC
+        constexpr int SHM_F_BAT_VOLT        = 3;   // SHM_FIELD_BAT_VOLT
+        constexpr int SHM_F_VEHICLE_SPEED   = 2;   // SHM_FIELD_VEHICLE_SPEED
 
         m_ruleEngineCtx = QVariantMap{};
         m_ruleEngineCtx["bat_soc"]              = static_cast<double>(shm.bat_soc);
@@ -406,9 +424,9 @@ void ShmDataSource::onTick() {
         m_ruleEngineCtx["motor_temp"]           = static_cast<double>(shm.motor_temp);
         m_ruleEngineCtx["precharge_status"]     = static_cast<double>(shm.charge_status);
         m_ruleEngineCtx["idle_seconds"]         = static_cast<double>(idle_sec);
-        m_ruleEngineCtx["bat_soc_lost"]         = isLost("bat_soc");
-        m_ruleEngineCtx["bat_volt_lost"]        = isLost("bat_volt");
-        m_ruleEngineCtx["vehicle_speed_lost"]   = isLost("vehicle_speed");
+        m_ruleEngineCtx["bat_soc_lost"]         = isLost(SHM_F_BAT_SOC);
+        m_ruleEngineCtx["bat_volt_lost"]        = isLost(SHM_F_BAT_VOLT);
+        m_ruleEngineCtx["vehicle_speed_lost"]   = isLost(SHM_F_VEHICLE_SPEED);
         m_ruleEngineCtx["driver_occupied"]      = static_cast<double>(shm.driver_occupied);
         m_ruleEngineCtx["driver_buckled"]       = static_cast<double>(shm.driver_buckled);
         m_ruleEngineCtx["passenger_occupied"]   = static_cast<double>(shm.passenger_occupied);
@@ -418,6 +436,8 @@ void ShmDataSource::onTick() {
         m_rule_engine->evaluate(m_ruleEngineCtx);
         // setter 闭包改的是 m_snapshot, 同步到 next 让推送生效
         next.trip_range_confidence_pct = m_snapshot.trip_range_confidence_pct;
+        next.view_current             = m_snapshot.view_current;
+        next.indicators               = m_snapshot.indicators;
     }
 
     // ─── 5. 推送快照 ───
